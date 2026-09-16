@@ -1,8 +1,9 @@
 # Example ACOS run manifest.
-# Composed by the orchestrator, shown to the user, frozen after GO.
+# Composed by the orchestrator, shown to the user, approved at GO. Rule changes after GO are amendments (new revision).
 
 acos: "0.1"
 id: 2026-09-16-auth-token-refresh
+revision: 1
 intent: >
   Add silent refresh of the auth token when a request returns 401,
   without changing the public client API.

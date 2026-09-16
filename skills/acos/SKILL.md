@@ -32,6 +32,7 @@ first, then continue.
 | `/acos init` | Derive `.acos.yaml` from the repo. Section 6. |
 | `/acos save-preset <name>` | Save the last presented or executed manifest's stage shape as `acos/presets/<name>.yaml`. Section 7. |
 | `/acos show` | Print the last manifest for this session, or the newest under `runs/`. |
+| `/acos amend <change>` | Change the running manifest's rules mid-run. Section 8. Also triggered by any in-flight request that changes a rule. |
 
 ## 1. Understand intent
 
@@ -104,9 +105,10 @@ On GO:
       `runs/<id>/artifacts/<name>.md`.
    e. Run the `check`. `command`: run it, exit 0 is pass. `review`: the
       stage output's first line must be `VERDICT: PASS`. `none`: pass.
-   f. Append a stage record to `log.yaml`: name, iteration, adapter,
-      provider, model, effort, started, ended, tokens if the adapter
-      reports them, check outcome, and the shortest decisive check output.
+   f. Append a stage record to `log.yaml`: name, iteration, revision,
+      adapter, provider, model, effort, started, ended, tokens if the
+      adapter reports them, check outcome, and the shortest decisive
+      check output.
    g. On fail, apply `on_fail` (stage value, else `loop.on_fail`):
       - `retry`: rerun the stage with the check output appended to the
         prompt. Stop after `max_iterations` (stage, else loop, else 3).
@@ -115,13 +117,15 @@ On GO:
         last one and behave as `retry`. Log the model actually used.
       - `ask`: show the check output and ask the user: retry, skip, stop.
       - `stop`: end the run as failed.
-3. Never edit `manifest.yaml` after step 1. Deviations go in the log.
+3. Never edit `manifest.yaml` in place. Rule changes go through an
+   amendment (section 8). Outcomes the rules allow go in the log.
 
 ## 5. Report
 
 End with a short report:
 
-- run id and outcome (success / failed at stage X / stopped by user)
+- run id, final revision, outcome (success / failed at stage X / stopped by user)
+- amendments, one line each, if any
 - one line per stage: name, iterations, model actually used, check result
 - actual tokens or cost if any adapter reported them, next to the
   estimate; if the budget ceiling was crossed, say so
@@ -163,6 +167,44 @@ escalation, loop and gates. Add `name` and a one-line `description`
 derived from the intent. Write to `acos/presets/<name>.yaml`. Show it.
 
 Refuse to overwrite an existing preset without asking.
+
+## 8. Amend: change the rules mid-run
+
+Trigger: the user asks for something during execution that the current
+manifest does not allow (add or drop a stage, swap a model or effort,
+raise `max_iterations`, change a check, change `on_fail`), or you can see
+the current rules will not reach the intent. Do not silently comply and
+do not silently improvise. Amend.
+
+1. Compose the new manifest: copy the current one, apply the change,
+   increment `revision`. Completed stages stay as they were.
+2. Show a short diff (field path: old -> new, one line per change) and
+   the full new manifest. Header:
+
+```
+ACOS amendment: <id> r<N> -> r<N+1>   at stage: <current stage>
+Proposed by: user | orchestrator   Reason: <one line>
+Reply GO to continue under r<N+1>, or tell me what to change.
+```
+
+3. Wait for GO unless `gates.go: auto`.
+4. On GO: rename `manifest.yaml` to `manifest.r<N>.yaml`, write the new
+   one as `manifest.yaml`, append to `amendments.yaml`:
+
+```yaml
+- revision: <N+1>
+  at_stage: <name>
+  proposed_by: user | orchestrator
+  reason: "<one line>"
+  changes: "<field path: old -> new; ...>"
+```
+
+5. Resume at the current stage. If the current stage's check or model
+   changed, restart that stage's iteration count.
+
+Not an amendment: retry, escalation, and the user answering an `ask`
+with retry / skip / stop. Those are outcomes the rules already allow and
+go to the log only.
 
 ## Rules
 

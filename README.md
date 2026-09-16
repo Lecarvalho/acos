@@ -44,7 +44,9 @@ intent  ->  manifest  ->  GO?  ->  stage 1 -> check -> stage 2 -> ...  ->  repor
 - **Scope is optional and advisory.** Hints, not a sandbox.
 - **Presets reference model tiers** (`fast`, `balanced`, `strong`), not
   model ids. Swap providers in `.acos.yaml` without touching presets.
-- **The manifest is frozen after GO.** Deviations go in the run log.
+- **Rule changes after GO are amendments.** New revision, shown, approved
+  again, resumed at the current stage. Outcomes the rules already allow
+  (retry, escalation) just go in the run log.
 - **Nothing to hand-edit.** `/acos init` derives `.acos.yaml` from the
   repo. Presets grow out of real runs, not templates.
 

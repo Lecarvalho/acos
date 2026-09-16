@@ -30,7 +30,9 @@ delegates to subagents of the same provider, or calls external models.
 | **Adapter** | How a stage is executed: `inline`, `subagent`, `workflow`, or `external`. |
 | **Preset** | A named, ordered set of blocks plus loop and gate defaults. Presets are the thing people import. |
 | **Catalog** | The project's collection of providers, blocks, and presets. |
-| **Manifest** | The composed, per-run document. Frozen after GO. |
+| **Manifest** | The composed, per-run document. Approved at GO; changed only by an amendment. |
+| **Amendment** | A change to the manifest's rules after GO. Produces a new revision, shown and approved like the original. |
+| **Deviation** | An outcome the existing rules allowed (escalation, retry). Logged, never a new revision. |
 | **Loop** | The rule that decides whether to repeat, escalate, or stop after a stage fails its check. |
 | **Gate** | A point where execution pauses for a human decision. The GO gate is mandatory. |
 
@@ -77,8 +79,9 @@ human-authored choice, never a preset default.
 - Stages run in order. A stage's `adapter` decides how it runs.
 - Each stage produces a stage record in `runs/<run-id>/log.yaml`: start, end,
   provider, model, tokens (if known), outcome, and any check output.
-- The manifest is not modified during execution. Deviations (for example an
-  escalation that chose a different model) are recorded in the log, not the
+- The manifest's rules do not change during execution except through an
+  amendment (2.7). Deviations the rules allow (an escalation that chose a
+  different model, a second retry) are recorded in the log, not the
   manifest.
 
 ### 2.5 Loop
@@ -101,9 +104,42 @@ When `max_iterations` is exhausted the run ends and reports failure.
 
 ### 2.6 Report
 
-The final report includes: manifest id, each stage's outcome, iterations
-used, actual token usage or cost if known versus estimate, and a summary of
-the changes made.
+The final report includes: manifest id and final revision, each stage's
+outcome, iterations used, actual token usage or cost if known versus
+estimate, amendments made, and a summary of the changes made.
+
+### 2.7 Amendments
+
+Runs need adjusting in flight: a stage turns out unnecessary, a model
+should be swapped, iterations extended, a verify command was wrong. The
+rule is unchanged: nothing executes that the user has not seen and
+approved. Approval can simply happen more than once.
+
+- Either the user or the orchestrator may propose an amendment. The
+  orchestrator proposes one when it can see the current rules will not
+  reach the intent (for example the verify command does not exist).
+- The orchestrator composes a new manifest with `revision` incremented,
+  shows a short diff against the current revision plus the full new
+  manifest, and waits for GO. `gates.go: auto` applies here as at start.
+- Completed stages are not re-run. Execution resumes at the current
+  stage under the new revision.
+- On GO, the previous file is archived as `manifest.r<N>.yaml`, the new
+  one becomes `manifest.yaml`, and an entry is appended to
+  `amendments.yaml`:
+
+```yaml
+- revision: 2
+  at_stage: implement
+  proposed_by: user | orchestrator
+  reason: "verify command should include typecheck"
+  changes: "stages.implement.check.command: pnpm test -> pnpm typecheck && pnpm test"
+```
+
+- Every stage record in the log carries the `revision` it ran under.
+
+What is *not* an amendment: anything the current rules already allow.
+Escalation, retries up to the limit, and `ask` answers of retry / skip /
+stop are deviations and go to the log only.
 
 ---
 
@@ -117,6 +153,7 @@ constraints live in `schema/acos.schema.json`.
 ```yaml
 acos: "0.1"            # schema version, required
 id: string             # run id, required. Orchestrator generates it.
+revision: int          # 1 at GO, incremented by each amendment. Optional, default 1.
 intent: string         # one or two sentence summary, required
 preset: string         # preset name this was derived from, optional
 scope: Scope           # optional
