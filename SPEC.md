@@ -119,8 +119,9 @@ approved. Approval can simply happen more than once.
   orchestrator proposes one when it can see the current rules will not
   reach the intent (for example the verify command does not exist).
 - The orchestrator composes a new manifest with `revision` incremented,
-  shows a short diff against the current revision plus the full new
-  manifest, and waits for GO. `gates.go: auto` applies here as at start.
+  writes it to disk, shows only a short diff against the current revision
+  (the full file is on disk for inspection), and waits for GO.
+  `gates.go: auto` applies here as at start.
 - Completed stages are not re-run. Execution resumes at the current
   stage under the new revision.
 - On GO, the previous file is archived as `manifest.r<N>.yaml`, the new

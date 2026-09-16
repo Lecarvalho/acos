@@ -178,18 +178,21 @@ do not silently improvise. Amend.
 
 1. Compose the new manifest: copy the current one, apply the change,
    increment `revision`. Completed stages stay as they were.
-2. Show a short diff (field path: old -> new, one line per change) and
-   the full new manifest. Header:
+2. Write the full new manifest to `runs/<id>/manifest.r<N+1>.pending.yaml`.
+   Show only the diff: one line per changed field, `path: old -> new`.
+   Added stages show as `stages[<name>]: (added) adapter/model/effort`.
+   Do not paste the full manifest. Header:
 
 ```
 ACOS amendment: <id> r<N> -> r<N+1>   at stage: <current stage>
 Proposed by: user | orchestrator   Reason: <one line>
+Full manifest: runs/<id>/manifest.r<N+1>.pending.yaml
 Reply GO to continue under r<N+1>, or tell me what to change.
 ```
 
 3. Wait for GO unless `gates.go: auto`.
-4. On GO: rename `manifest.yaml` to `manifest.r<N>.yaml`, write the new
-   one as `manifest.yaml`, append to `amendments.yaml`:
+4. On GO: rename `manifest.yaml` to `manifest.r<N>.yaml`, rename the
+   pending file to `manifest.yaml`, append to `amendments.yaml`:
 
 ```yaml
 - revision: <N+1>
