@@ -1,0 +1,74 @@
+# Example ACOS run manifest.
+# Composed by the orchestrator, shown to the user, frozen after GO.
+
+acos: "0.1"
+id: 2026-09-16-auth-token-refresh
+intent: >
+  Add silent refresh of the auth token when a request returns 401,
+  without changing the public client API.
+preset: plan-build-review
+
+scope:
+  include: [src/auth/, tests/auth/]
+  notes: "Keep the AuthClient constructor signature unchanged."
+
+stages:
+  - name: plan
+    block: plan
+    adapter: inline
+    effort: high
+    outputs: [plan]
+
+  - name: implement
+    block: implement
+    adapter: subagent
+    provider: anthropic
+    model: claude-sonnet-5
+    effort: medium
+    inputs: [plan]
+    outputs: [diff]
+    check:
+      kind: command
+      command: "npm test -- auth"
+    on_fail: escalate
+    escalation:
+      - { provider: anthropic, model: claude-opus-5, effort: high }
+    max_iterations: 3
+
+  - name: review
+    block: review
+    adapter: external
+    provider: openai
+    model: gpt-5
+    effort: high
+    inputs: [plan, diff]
+    outputs: [review]
+    check:
+      kind: review
+      criteria: "No public API change. 401 path covered by a test."
+    on_fail: ask
+
+loop:
+  max_iterations: 3
+  on_fail: retry
+
+gates:
+  go: required
+  per_stage: false
+
+budget:
+  currency: USD
+  ceiling: 3.00
+  on_exceed: note
+
+estimate:
+  total_cost: 1.10
+  currency: USD
+  per_stage:
+    - { name: implement, tokens: 45000, cost: 0.70 }
+    - { name: review,    tokens: 20000, cost: 0.40 }
+  basis: "catalog price table; token counts guessed from scope size"
+
+outputs:
+  run_dir: runs/2026-09-16-auth-token-refresh
+  write_log: true

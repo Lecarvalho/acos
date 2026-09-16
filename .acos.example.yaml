@@ -1,0 +1,22 @@
+# Project defaults for ACOS. Copy to your repo root as .acos.yaml and edit.
+# Presets reference these with {{ project.* }}.
+
+acos: "0.1"
+
+preset: plan-build-review        # default preset when the user names none
+
+provider: anthropic
+models:
+  fast: claude-haiku-4-5         # explore, cheap checks
+  balanced: claude-sonnet-5      # implementers
+  strong: claude-opus-5          # planning, review, escalation
+
+verify: "npm test"               # substituted into {{ project.verify }}
+
+gates:
+  go: required                   # `auto` only here, never in a preset
+
+budget:                          # optional, advisory
+  currency: USD
+  ceiling: 5.00
+  on_exceed: note
