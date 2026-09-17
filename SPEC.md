@@ -60,8 +60,11 @@ delegates to subagents of the same provider, or calls external models.
 
 ### 2.1 Size
 
-Before composing, the orchestrator estimates the whole intent in stages,
-agents and tokens, and compares it with the project limits (section 6).
+Before composing, the orchestrator counts what the intent touches (files,
+lines changed, deliverables), derives stages, agents and tokens from
+those counts, and compares all of it with the project limits (section 6).
+Counts come first because they can be checked; a token guess made first
+drifts to whatever the limit allows.
 
 - Fits: compose one manifest. This holds even when the user asked for a
   plan: the orchestrator says the task fits one run and composes a single
@@ -79,8 +82,13 @@ shown. Nothing forces that: a small part may run in the same session, and
 a single manifest that fits may run right away. The orchestrator says
 which it recommends and why, in one line.
 
-Sizing is a judgement. Calibration notes, when present, are the main
-input; otherwise the size of the scope and the number of files named.
+Token figures come from calibration notes when present, otherwise from
+the skill's built-in floors (a subagent costs about 150k before it writes
+a line; a review about 200k and is expected to fail once). Within a plan,
+the actual/estimate ratio of parts already run scales the parts still to
+run, and a part that no longer fits is re-cut before its GO. Parts whose
+estimates all sit just under a limit are a sign of fitting the guess to
+the limit; the orchestrator recounts and cuts further.
 
 The orchestrator may also recommend a fresh session for a single
 manifest when the session that composed it already carries a lot of
@@ -317,8 +325,11 @@ intent into a plan of parts and cap delegation. Nothing checks them mid-run.
 
 ```yaml
 limits:
+  files: 8                      # created or edited per run, tests included
+  lines: 400                    # added plus removed per run
   orchestrator_tokens: 100000   # context the orchestrating session may spend
-  worker_tokens: 300000         # sum over subagents, workflows and external calls
+  worker_tokens: 300000         # sum over subagents, workflows and external calls,
+                                # as the harness reports them (re-read context included)
   agents: 3                     # subagent, workflow agent or external calls per run
   stages: 5
   cost: 5.00                    # optional, with currency
@@ -336,15 +347,17 @@ report usage, the orchestrator estimates from what it read and wrote.
 
 ```yaml
 estimate:
-  orchestrator_tokens: 40000
-  worker_tokens: 120000
-  agents: 1
+  files: 4
+  lines: 180
+  orchestrator_tokens: 90000
+  worker_tokens: 0
+  agents: 0
   per_stage:
     - name: implement
-      tokens: 40000
+      tokens: 90000
   cost: 0.80                    # optional
   currency: USD
-  basis: "calibration.md: implement stages in this repo average 35k"
+  basis: "calibration.md: inline implement in this repo runs 40k + 12k per file"
 ```
 
 ### 3.10 Drift
@@ -460,6 +473,8 @@ models:
 verify: "npm test"
 gates: { go: required }
 limits:
+  files: 8
+  lines: 400
   orchestrator_tokens: 100000
   worker_tokens: 300000
   agents: 3
@@ -494,8 +509,10 @@ Based on 6 runs, 2026-09-10 to 2026-09-16. Last calibrated 2026-09-16.
   (inline) + review (subagent, strong).
 
 ## Cost
-- implement, inline: 25k to 45k orchestrator tokens per run.
-- review, subagent: about 30k worker tokens; found a blocker once in 6 runs.
+- implement, inline: 40k + about 12k per file touched.
+- any subagent: about 150k before its first edit, then 15k per file.
+- review, subagent: about 200k worker tokens; failed first time in 2 of 6
+  runs, fix inline cost about 30k.
 
 ## Recurring drift
 - verify command extended with `pnpm typecheck` in 3 runs. Consider
@@ -534,19 +551,20 @@ parts:
   - index: 1
     dir: 1-refresh-on-401
     summary: "Silent refresh on 401 in AuthClient, with tests."
-    estimate: { orchestrator_tokens: 60000, worker_tokens: 0, agents: 0 }
+    estimate: { files: 3, orchestrator_tokens: 75000, worker_tokens: 0, agents: 0 }
+    actual:   { files: 4, orchestrator_tokens: 90000, worker_tokens: 0, agents: 0 }
     status: done          # planned | done | failed
   - index: 2
     dir: 2-logout
     summary: "Logout endpoint and UI action."
-    estimate: { orchestrator_tokens: 45000, worker_tokens: 30000, agents: 1 }
+    estimate: { files: 5, orchestrator_tokens: 95000, worker_tokens: 0, agents: 0 }
     status: planned
   - index: 3
     dir: 3-session-persistence
     summary: "Persist session across reloads."
-    estimate: { orchestrator_tokens: 70000, worker_tokens: 0, agents: 0 }
+    estimate: { files: 4, orchestrator_tokens: 85000, worker_tokens: 0, agents: 0 }
     status: planned
-estimate: { orchestrator_tokens: 175000, worker_tokens: 30000, agents: 1, sessions: 3 }
+estimate: { orchestrator_tokens: 255000, worker_tokens: 0, agents: 0, sessions: 3 }
 ```
 
 Every part's manifest is complete on its own: it can be attached to a

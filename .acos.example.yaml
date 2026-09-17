@@ -16,10 +16,12 @@ verify: "npm test"               # substituted into {{ project.verify }}
 gates:
   go: required                   # `auto` only here, never in a preset
 
-# Session limits. Advisory and compose-time only: they size the task into
-# split big tasks into a plan and cap delegation. Nothing checks them mid-run; `/acos calibrate`
+# Session limits. Advisory and compose-time only: they split big tasks
+# into a plan and cap delegation. files/lines size a part; tokens follow. Nothing checks them mid-run; `/acos calibrate`
 # reports afterwards how often runs outgrew them.
 limits:
+  files: 8                       # created or edited per run, tests included
+  lines: 400                     # added plus removed per run
   orchestrator_tokens: 100000    # context the orchestrating session may spend
   worker_tokens: 300000          # subagents, workflow agents, external calls combined
   agents: 3                      # delegations per run

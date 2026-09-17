@@ -333,6 +333,16 @@
       "description": "Rough compose-time estimate (or, as `actual`, what the run used). Every field optional.",
       "additionalProperties": false,
       "properties": {
+        "files": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Files created or edited, tests included."
+        },
+        "lines": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Lines added plus removed."
+        },
         "orchestrator_tokens": {
           "type": "integer",
           "minimum": 0
@@ -400,6 +410,16 @@
       "description": "Advisory ceilings for one run. Act at compose time only: split large intents into a plan and cap delegation. Not checked mid-run; calibrate compares them with actual afterwards.",
       "additionalProperties": false,
       "properties": {
+        "files": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Files created or edited, tests included."
+        },
+        "lines": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Lines added plus removed."
+        },
         "orchestrator_tokens": {
           "type": "integer",
           "minimum": 0,
@@ -408,7 +428,7 @@
         "worker_tokens": {
           "type": "integer",
           "minimum": 0,
-          "description": "Sum over subagents, workflow agents and external calls."
+          "description": "Sum over subagents, workflow agents and external calls, as the harness reports them (re-read context included)."
         },
         "agents": {
           "type": "integer",

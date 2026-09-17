@@ -67,14 +67,16 @@ limits:
   stages: 5
 
 estimate:
-  orchestrator_tokens: 55000
-  worker_tokens: 20000
+  files: 3
+  lines: 150
+  orchestrator_tokens: 90000
+  worker_tokens: 200000
   agents: 1
   per_stage:
-    - { name: plan,      tokens: 10000 }
-    - { name: implement, tokens: 45000 }
-    - { name: review,    tokens: 20000 }
-  basis: "calibration.md Cost section; review tokens guessed from diff size"
+    - { name: plan,      tokens: 15000 }
+    - { name: implement, tokens: 75000 }
+    - { name: review,    tokens: 200000 }
+  basis: "calibration.md Cost section; review at the 200k subagent floor"
 
 outputs:
   run_dir: runs/2026-09-16-auth-token-refresh
