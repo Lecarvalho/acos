@@ -1,13 +1,18 @@
-# Example ACOS run manifest.
-# Composed by the orchestrator, shown to the user, approved at GO. Rule changes after GO are amendments (new revision).
+# Example ACOS run manifest, as planned and approved at GO.
+# What actually ran is written at the end as manifest.executed.yaml
+# (same schema, plus `actual` and `drift`).
 
 acos: "0.1"
 id: 2026-09-16-auth-token-refresh
-revision: 1
 intent: >
   Add silent refresh of the auth token when a request returns 401,
   without changing the public client API.
-preset: plan-build-review
+
+part:
+  plan: 2026-09-16-auth-hardening
+  index: 1
+  of: 3
+  assumes: "Clean tree at main; npm test passes."
 
 scope:
   include: [src/auth/, tests/auth/]
@@ -22,9 +27,7 @@ stages:
 
   - name: implement
     block: implement
-    adapter: subagent
-    provider: anthropic
-    model: claude-sonnet-5
+    adapter: inline
     effort: medium
     inputs: [plan]
     outputs: [diff]
@@ -57,18 +60,21 @@ gates:
   go: required
   per_stage: false
 
-budget:
-  currency: USD
-  ceiling: 3.00
-  on_exceed: note
+limits:
+  orchestrator_tokens: 100000
+  worker_tokens: 300000
+  agents: 3
+  stages: 5
 
 estimate:
-  total_cost: 1.10
-  currency: USD
+  orchestrator_tokens: 55000
+  worker_tokens: 20000
+  agents: 1
   per_stage:
-    - { name: implement, tokens: 45000, cost: 0.70 }
-    - { name: review,    tokens: 20000, cost: 0.40 }
-  basis: "catalog price table; token counts guessed from scope size"
+    - { name: plan,      tokens: 10000 }
+    - { name: implement, tokens: 45000 }
+    - { name: review,    tokens: 20000 }
+  basis: "calibration.md Cost section; review tokens guessed from diff size"
 
 outputs:
   run_dir: runs/2026-09-16-auth-token-refresh

@@ -9,6 +9,7 @@ procedure) and the catalog (so it has blocks and presets to compose from).
 <your-repo>/.claude/skills/acos/
   SKILL.md
   references/adapters.md
+  references/workflow.md
 ```
 
 Copy from `skills/acos/` in this repo.
@@ -46,6 +47,17 @@ blocks. When a run's shape is worth keeping:
 /acos save-preset <name>
 ```
 
+After a few runs, in a session of its own:
+
+```
+/acos calibrate
+```
+
+reads `runs/*/manifest.yaml`, `manifest.executed.yaml` and `log.yaml`,
+and writes `acos/calibration.md`: how this repo tends to behave (which
+stages get dropped, what things cost, recurring fixes). Compose reads it.
+Commit it; it is the project's memory of its own runs.
+
 ## 4. Ignore run output
 
 Add to `.gitignore`:
@@ -54,7 +66,8 @@ Add to `.gitignore`:
 runs/
 ```
 
-Keep it if you want a history of manifests and logs in the repo.
+Keep `runs/` out of the ignore list if you want `/acos calibrate` to see
+history across machines. Either way, commit `acos/calibration.md`.
 
 ## 5. Use it
 
@@ -65,7 +78,21 @@ In Claude Code:
 ```
 
 or just describe the task and ask for it to be run through ACOS. You will
-see the manifest, reply `GO`, and the run starts.
+see the manifest, reply `GO`, and the run starts. It does not stop again
+unless a check fails with `on_fail: ask` or a gate is set.
+
+If the task is bigger than the repo's session limits you get a plan
+instead: `runs/<plan-id>/plan.yaml` plus one manifest per part. Run each
+part in its own session:
+
+```
+/acos run runs/<plan-id> 1
+```
+
+`/acos plan <task>` stops before executing anything: it proposes the cut,
+writes the plan once you agree, and ends. That is the usual way to
+prepare work ahead of time or attach manifests to a ticket. A task small
+enough for one run gets a single manifest instead of a plan.
 
 ## Updating
 

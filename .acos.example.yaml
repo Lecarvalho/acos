@@ -1,14 +1,14 @@
-# Project defaults for ACOS. Copy to your repo root as .acos.yaml and edit.
-# Presets reference these with {{ project.* }}.
+# Project defaults for ACOS. `/acos init` writes this for you; edit if you like.
+# Catalog files reference these with {{ project.* }}.
 
 acos: "0.1"
 
-preset: plan-build-review        # default preset when the user names none
+# preset: plan-build-review    # optional. Default is ad hoc composition from blocks.
 
 provider: anthropic
 models:
   fast: claude-haiku-4-5         # explore, cheap checks
-  balanced: claude-sonnet-5      # implementers
+  balanced: claude-sonnet-5      # delegated implementers
   strong: claude-opus-5          # planning, review, escalation
 
 verify: "npm test"               # substituted into {{ project.verify }}
@@ -16,7 +16,11 @@ verify: "npm test"               # substituted into {{ project.verify }}
 gates:
   go: required                   # `auto` only here, never in a preset
 
-budget:                          # optional, advisory
-  currency: USD
-  ceiling: 5.00
-  on_exceed: note
+# Session limits. Advisory and compose-time only: they size the task into
+# split big tasks into a plan and cap delegation. Nothing checks them mid-run; `/acos calibrate`
+# reports afterwards how often runs outgrew them.
+limits:
+  orchestrator_tokens: 100000    # context the orchestrating session may spend
+  worker_tokens: 300000          # subagents, workflow agents, external calls combined
+  agents: 3                      # delegations per run
+  stages: 5
