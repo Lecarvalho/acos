@@ -25,9 +25,9 @@ The lifecycle is always the same:
    later in its own fresh session.
 5. It executes one manifest, stage by stage. When the plan turns out wrong
    it adjusts, logs the drift, and keeps going.
-6. It reports what ran and writes the manifest as executed.
-7. Later, in a separate session, `calibrate` compares planned and executed
-   manifests and updates the project's calibration notes.
+6. It reports what ran and closes the run log.
+7. Later, in a separate session, `calibrate` compares manifests with their
+   run logs and updates the project's calibration notes.
 
 This applies to every run, whether the orchestrator does the work itself,
 delegates to subagents of the same provider, or calls external models.
@@ -49,7 +49,7 @@ delegates to subagents of the same provider, or calls external models.
 | **Plan** | An ordered set of manifests that together complete one intent too big for a single session. Each manifest is a part, sized to the limits, meant to run in its own session. |
 | **Part** | One manifest inside a plan. Carries its index and what it assumes done before it. |
 | **Drift** | Any difference between the planned manifest and what ran: a stage added, dropped, or re-ordered, a model or effort changed, a check changed. Logged, never re-approved. |
-| **Executed manifest** | The manifest as it actually ran, written at the end of the run. Same schema as the planned one plus a `drift` list. |
+| **Run log** | `runs/<run-id>/log.yaml`: what ran, stage by stage, with check results, drift and actual counts. With the manifest it is the whole record of a run. |
 | **Calibration** | A project-level note, derived from past runs, that says how this repo tends to behave. Read at compose time. |
 | **Loop** | The rule that decides whether to repeat, escalate, or stop after a stage fails its check. |
 | **Gate** | A point where execution pauses for a human decision. The GO gate is mandatory. |
@@ -142,7 +142,12 @@ human-authored choice, never a preset default.
   stage starts. It is never edited afterwards.
 - Stages run in order. A stage's `adapter` decides how it runs.
 - Each stage produces a stage record in `runs/<run-id>/log.yaml`: start, end,
-  provider, model, tokens (if known), outcome, and any check output.
+  provider, model, tokens (only when the adapter reports them), outcome, and
+  the shortest decisive check output.
+- A stage output becomes a file under `runs/<run-id>/artifacts/` only when
+  another context reads it: a delegated stage takes it as input, a gate
+  shows it, or a later part needs it. Output passed between inline stages
+  stays in the orchestrator's context, and `git diff` is the diff.
 - When the plan turns out wrong, the orchestrator changes course and keeps
   going. The change is a **drift** entry in the log (2.7). It does not
   stop for approval.
@@ -193,27 +198,81 @@ the log only. A running session cannot measure its own token use
 reliably, so limits are not checked mid-run. Whether a run outgrew its
 limits is a question for `calibrate`, comparing `estimate` with `actual`.
 
-### 2.8 Report and executed manifest
+### 2.8 Report and run log
 
-At the end the orchestrator writes `runs/<run-id>/manifest.executed.yaml`:
-the planned manifest with the stages as they actually ran (added, dropped,
-re-ordered, models and efforts as used), an `actual` block next to
-`estimate`, and the `drift` list copied from the log. Same schema.
+The run log is the only record a run writes about itself. The manifest
+says what was planned; the log's stage records and `drift` say what ran.
+Nothing restates the manifest.
+
+```yaml
+# runs/<run-id>/log.yaml
+manifest: 2026-09-17-lanes-core
+sessions: ["claude:86ea4acb-95fc-487b-9ff4-119fa2bfeb5d"]   # harness session ids, when exposed
+started: "2026-09-17T10:20:04-04:00"
+drift:
+  - at_stage: plan
+    change: "scope: 4 files -> 8"
+    reason: "shared bar extraction keeps lanes and single chart identical"
+stages:
+  - name: plan
+    iteration: 1
+    adapter: inline
+    provider: anthropic
+    model: claude-opus-5
+    effort: high
+    started: "2026-09-17T10:20:04-04:00"
+    ended: "2026-09-17T10:23:22-04:00"
+    check: none
+    outcome: pass
+  - name: implement
+    iteration: 1
+    adapter: inline
+    provider: anthropic
+    model: claude-opus-5
+    effort: medium
+    started: "2026-09-17T10:23:22-04:00"
+    ended: "2026-09-17T10:30:55-04:00"
+    check: "npm run verify:fast && npm run test:ui"
+    outcome: pass
+    output: "exit 0; 86 files, 841 tests"
+ended: "2026-09-17T10:31:58-04:00"
+outcome: success            # success | failed | stopped
+actual:
+  files: 8                  # from git, new files included
+  lines: 478
+  agents: 0
+  worker_tokens: 0          # only what adapters reported
+```
+
+Token counts in the log are measured or absent, never estimated. An
+orchestrator cannot measure its own use, and a guess recorded as `actual`
+would only teach `calibrate` the estimate back. Session ids and stage
+times let a usage observer outside the run (a session monitor, for
+example) supply the missing counts later. Session ids are hints: after a
+session reset a harness may still expose the old one, so stage times are
+the key.
+
+When the manifest is a part of a plan, the plan file's entry for that part
+gets its status and `actual`. A part that later parts build on also writes
+`artifacts/handoff.md`: what later parts reuse, decisions they must not
+undo, deferred findings with the owning part, and the verify result. It is
+read by a fresh session, so it stays short.
 
 The final report includes: manifest id, outcome, each stage's outcome and
-iterations, drift in one line each, actual versus estimated tokens where
+iterations, drift in one line each, actual versus estimated counts where
 known, what remains in the plan if any, and a summary of the changes made.
-
-When the manifest is a part of a plan, the plan file's entry for that
-part is updated with the outcome, and the report names the next part to
-run.
+It points at files such as the handoff rather than repeating them, and
+names the next part to run when there is one.
 
 ### 2.9 Calibrate
 
 `calibrate` is run on its own, not inside a work session. It reads the
-planned and executed manifests and logs under `runs/`, compares them, and
+manifests, run logs and plan files under `runs/`, compares them, and
 writes `acos/calibration.md`: a short, human-readable note on how this
 repo behaves. Compose reads it as a prior. Section 7 describes the file.
+Token counts missing from the logs come from a usage observer when one
+can report on the recorded sessions and stage times; otherwise they stay
+unknown.
 
 ---
 
@@ -236,8 +295,6 @@ loop: Loop             # optional, manifest-level defaults
 gates: Gates           # optional
 limits: Limits         # optional; copied from .acos.yaml, may be overridden per run
 estimate: Estimate     # optional, rough
-actual: Estimate       # executed manifest only
-drift: [Drift]         # executed manifest only
 outputs: Outputs       # optional
 ```
 
@@ -341,9 +398,9 @@ All fields optional. Missing fields are unlimited.
 ### 3.9 Estimate and actual (optional, rough)
 
 `estimate` is produced at compose time and is what the user approves.
-`actual` has the same shape and appears only in the executed manifest.
-Any field may be absent. Token counts are rough; when the harness does not
-report usage, the orchestrator estimates from what it read and wrote.
+`actual` has the same shape and lives in the run log and the plan file,
+not in the manifest. Any field may be absent. Estimated token counts are
+rough; actual token counts are measured or absent (2.8).
 
 ```yaml
 estimate:
@@ -361,6 +418,8 @@ estimate:
 ```
 
 ### 3.10 Drift
+
+Recorded in the run log (2.8), never in the manifest.
 
 ```yaml
 drift:

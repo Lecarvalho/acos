@@ -13,7 +13,7 @@ they like, in a fresh session, or attach them to a work item. The
 manifest says which stages run, on which provider and model, at what
 effort, with how many agents, and roughly how many tokens. When the plan
 turns out wrong mid-run the orchestrator adjusts, logs the drift and keeps
-going; at the end it writes the manifest as it actually ran.
+going; at the end it closes the run log with what actually ran.
 `/acos calibrate` reads those over time so the next manifest for this
 repo is closer to right.
 
@@ -25,7 +25,7 @@ implement with a mid-tier model, review with a different provider.
 ## The loop
 
 ```
-intent -> size -> manifest -> GO? -> stage 1 -> check -> ... -> report + manifest.executed
+intent -> size -> manifest -> GO? -> stage 1 -> check -> ... -> report + run log
                   (summary)   (you)   (drift logged, not re-approved)
 
 too big:  intent -> size -> cut OK? -> plan: manifest 1..n on disk  -> session per part:
@@ -66,11 +66,11 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
 - **Scope is optional and advisory.** Hints, not a sandbox.
 - **Presets reference model tiers** (`fast`, `balanced`, `strong`), not
   model ids. Swap providers in `.acos.yaml` without touching presets.
-- **After GO, no re-approval.** Changes in flight are drift: logged,
-  applied, and written into `manifest.executed.yaml` at the end. The user
+- **After GO, no re-approval.** Changes in flight are drift: applied
+  and recorded in the run log. The user
   is asked again only on `on_fail: ask` or a gate.
-- **Calibration is a separate step.** `/acos calibrate` compares planned
-  and executed manifests across runs and writes a short note the next
+- **Calibration is a separate step.** `/acos calibrate` compares manifests
+  with their run logs across runs and writes a short note the next
   compose reads. Runs stay small; learning happens between them.
 - **Nothing to hand-edit.** `/acos init` derives `.acos.yaml` from the
   repo. Presets grow out of real runs, not templates.

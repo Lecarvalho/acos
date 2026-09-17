@@ -1,6 +1,6 @@
 # Example ACOS run manifest, as planned and approved at GO.
-# What actually ran is written at the end as manifest.executed.yaml
-# (same schema, plus `actual` and `drift`).
+# What actually ran is recorded next to it in log.yaml
+# (stage records, drift, actual counts). See SPEC.md 2.8.
 
 acos: "0.1"
 id: 2026-09-16-auth-token-refresh

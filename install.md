@@ -53,7 +53,7 @@ After a few runs, in a session of its own:
 /acos calibrate
 ```
 
-reads `runs/*/manifest.yaml`, `manifest.executed.yaml` and `log.yaml`,
+reads `runs/*/manifest.yaml`, `log.yaml` and `plan.yaml`,
 and writes `acos/calibration.md`: how this repo tends to behave (which
 stages get dropped, what things cost, recurring fixes). Compose reads it.
 Commit it; it is the project's memory of its own runs.

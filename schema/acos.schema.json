@@ -57,17 +57,6 @@
     "estimate": {
       "$ref": "#/$defs/Estimate"
     },
-    "actual": {
-      "$ref": "#/$defs/Estimate",
-      "description": "Executed manifest only. Same shape as estimate, filled with what the run actually used."
-    },
-    "drift": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/Drift"
-      },
-      "description": "Executed manifest only. Every difference between the planned manifest and what ran."
-    },
     "outputs": {
       "$ref": "#/$defs/Outputs"
     }
@@ -330,7 +319,7 @@
     },
     "Estimate": {
       "type": "object",
-      "description": "Rough compose-time estimate (or, as `actual`, what the run used). Every field optional.",
+      "description": "Rough compose-time estimate. The run log and plan file record `actual` in the same shape. Every field optional.",
       "additionalProperties": false,
       "properties": {
         "files": {
@@ -446,28 +435,6 @@
         "currency": {
           "type": "string",
           "default": "USD"
-        }
-      }
-    },
-    "Drift": {
-      "type": "object",
-      "required": [
-        "at_stage",
-        "change",
-        "reason"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "at_stage": {
-          "type": "string",
-          "description": "Stage that was running when the change was made."
-        },
-        "change": {
-          "type": "string",
-          "description": "'path: old -> new', or 'stages[<name>]: added | dropped'."
-        },
-        "reason": {
-          "type": "string"
         }
       }
     },
