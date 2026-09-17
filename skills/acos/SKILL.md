@@ -300,9 +300,8 @@ sizing and compose more accurate for this repo.
 
 1. Collect every `runs/*/` that has `manifest.yaml`. Read, per run:
    `manifest.yaml`, `manifest.executed.yaml` if present, `log.yaml`.
-   Older runs may have `amendments.yaml` and `manifest.r<N>.yaml`
-   revisions instead of an executed manifest; treat the newest revision
-   as executed and each amendment as drift.
+   A run without an executed manifest counts as planned only; use its
+   log for what ran.
 2. For each run, derive: intent size (files touched, from the log or
    `git` if the artifacts say), planned versus executed stages (added,
    dropped, re-ordered), models and efforts planned versus used,
