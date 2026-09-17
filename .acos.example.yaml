@@ -13,6 +13,11 @@ models:
 
 verify: "npm test"               # substituted into {{ project.verify }}
 
+# Captures a cropped screenshot for a part's try-it page; substituted into
+# {{ project.shot }}. A project whose interface is not a web page replaces this
+# with its own capture command; one without a visible surface removes the key.
+shot: "node .claude/skills/acos/scripts/shot.mjs"
+
 gates:
   go: required                   # `auto` only here, never in a preset
 

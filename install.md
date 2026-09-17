@@ -10,6 +10,7 @@ procedure) and the catalog (so it has blocks and presets to compose from).
   SKILL.md
   references/adapters.md
   references/workflow.md
+  scripts/shot.mjs
 ```
 
 Copy from `skills/acos/` in this repo.
@@ -39,6 +40,12 @@ The skill inspects the repo (test/lint scripts, installed provider CLIs,
 catalog model tiers) and writes `.acos.yaml`. It asks only if the verify
 command is a guess. `.acos.example.yaml` in this repo shows the shape if
 you prefer to write it by hand.
+
+`shot` is left pointing at the copied `scripts/shot.mjs`, which captures the
+cropped screenshots a part's try-it page is built from. A project whose
+interface is not a web page points the key at its own capture command; one
+with no visible surface removes the key, and parts simply close without
+captures.
 
 Presets are optional. The first runs compose stages ad hoc from the
 blocks. When a run's shape is worth keeping:

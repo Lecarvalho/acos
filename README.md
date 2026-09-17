@@ -46,6 +46,7 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
 | `acos/presets/` | Optional starting pipelines: `solo`, `plan-build-review`. Runs compose ad hoc from blocks by default; `/acos save-preset` promotes a good run into a preset. |
 | `acos/calibration.md` | Not shipped. Written per project by `/acos calibrate` from past runs; read at compose time. |
 | `skills/acos/` | The orchestrator skill for Claude Code, plus adapter notes. |
+| `skills/acos/scripts/shot.mjs` | Captures a cropped PNG of a running page with headless Chrome or Edge, so a part can show what it changed instead of describing it. No dependencies. |
 | `.acos.example.yaml` | Project defaults template. |
 | `install.md` | How to drop this into a project. |
 
