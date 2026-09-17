@@ -1,0 +1,32 @@
+# Project defaults for ACOS, derived by `/acos init` from this repository.
+# Catalog files reference these with {{ project.* }}.
+
+acos: "0.1"
+
+provider: anthropic
+models:
+  fast: claude-haiku-4-5         # explore, cheap checks
+  balanced: claude-sonnet-5      # delegated implementers
+  strong: claude-opus-5          # planning, review, escalation
+
+# This repository has no test runner: it is Markdown, YAML, one JSON schema
+# and one dependency-free Node script. Verify is therefore the two checks it
+# can actually fail — the script parses, and the schema compiles under the
+# draft the README tells contributors to validate manifests against.
+verify: "node --check skills/acos/scripts/shot.mjs && npx --yes ajv-cli@5 compile --spec=draft2020 -s schema/acos.schema.json"
+
+# Captures a cropped screenshot for a part's try-it page; substituted into
+# {{ project.shot }}. Here the script sits in the source tree rather than in
+# an installed skill copy.
+shot: "node skills/acos/scripts/shot.mjs"
+
+gates:
+  go: required                   # `auto` only here, never in a preset
+
+limits:
+  files: 8
+  lines: 400
+  orchestrator_tokens: 100000
+  worker_tokens: 300000
+  agents: 3
+  stages: 5

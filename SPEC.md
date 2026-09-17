@@ -258,6 +258,14 @@ gets its status and `actual`. A part that later parts build on also writes
 undo, deferred findings with the owning part, and the verify result. It is
 read by a fresh session, so it stays short.
 
+A part that changed a visible surface also writes `artifacts/try-it.md`:
+what a reader does to see the change, and one cropped screenshot per claim
+they can check, captured with `{{ project.shot }}` into
+`artifacts/shots/` and carrying a one or two line caption. It is the
+part's evidence rather than its summary: the caption says what the crop
+shows, and a crop that disagrees with its caption is a defect in the part.
+A part with no visible surface writes none.
+
 The final report includes: manifest id, outcome, each stage's outcome and
 iterations, drift in one line each, actual versus estimated counts where
 known, what remains in the plan if any, and a summary of the changes made.
@@ -530,6 +538,7 @@ models:
   balanced: claude-sonnet-5
   strong: claude-opus-5
 verify: "npm test"
+shot: "node .claude/skills/acos/scripts/shot.mjs"
 gates: { go: required }
 limits:
   files: 8
@@ -544,6 +553,11 @@ Catalog files may reference these values with `{{ project.<path> }}`
 placeholders (for example `{{ project.verify }}` or
 `{{ project.models.strong }}`). The orchestrator substitutes them at compose
 time. A placeholder with no value is a compose error, reported before GO.
+
+`shot` is the capture command the `evidence` block calls; a project whose
+interface is not a web page points it at its own, and one with no visible
+surface leaves the key out, which is what tells the orchestrator to
+compose no evidence stage.
 
 `limits` is the contract the user cares about most: it is what turns a
 large intent into a plan of parts, and what caps delegation. When absent,
