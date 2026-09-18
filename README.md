@@ -43,7 +43,7 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
 | `schema/manifest.example.yaml` | A complete manifest. |
 | `acos/catalog/providers.yaml` | Providers, models, rough prices, how to invoke them. |
 | `acos/catalog/blocks/` | Reusable stage definitions: explore, plan, implement, review, verify. |
-| `acos/presets/` | Optional starting pipelines: `solo`, `plan-build-review`. Runs compose ad hoc from blocks by default; `/acos save-preset` promotes a good run into a preset. |
+| `acos/presets/` | Optional starting pipelines: `solo`, `plan-build-review`, `fan-out`. Runs compose ad hoc from blocks by default; `/acos save-preset` promotes a good run into a preset. |
 | `acos/calibration.md` | Not shipped. Written per project by `/acos calibrate` from past runs; read at compose time. |
 | `skills/acos/` | The orchestrator skill for Claude Code, plus adapter notes. |
 | `skills/acos/scripts/shot.mjs` | Captures a cropped PNG of a running page with headless Chrome or Edge, so a part can show what it changed instead of describing it. No dependencies. |
@@ -64,6 +64,19 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
 - **Inline by default.** The orchestrator does the work. A stage is
   delegated only when independence, isolation or parallelism pays for the
   round trip. Three files do not get ten subagents.
+- **Fan-out when slices are disjoint.** Two or more groups of files that
+  share nothing become one part: the orchestrator plans once and writes a
+  brief per slice, a balanced-tier implementer per slice runs in parallel
+  owning only its files, verify runs on the merged tree. The second read
+  is paid at the cheaper tier and never lands in the orchestrator's
+  context. One group stays inline.
+- **Tier by role.** Plan, brief and handoff on the session model;
+  implementers in a fan-out and the evidence worker on the balanced tier;
+  review on the strong tier; verify on none. Screenshots are captured and
+  looked at by the evidence worker, so pixels never enter the
+  orchestrator's context, and its verdict is a check the part must pass.
+- **Parts wait only for what they build on.** `after` orders a plan;
+  parts in different subtrees may run in separate sessions at once.
 - **Scope is optional and advisory.** Hints, not a sandbox.
 - **Presets reference model tiers** (`fast`, `balanced`, `strong`), not
   model ids. Swap providers in `.acos.yaml` without touching presets.

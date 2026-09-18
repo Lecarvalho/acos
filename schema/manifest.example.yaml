@@ -12,6 +12,7 @@ part:
   plan: 2026-09-16-auth-hardening
   index: 1
   of: 3
+  after: []
   assumes: "Clean tree at main; npm test passes."
 
 scope:

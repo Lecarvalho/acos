@@ -252,6 +252,13 @@
           },
           "description": "Names of artifacts this stage produces."
         },
+        "owns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Files or directories only this stage writes. Required on a delegated stage that runs alongside another; concurrent stages' owns must be disjoint."
+        },
         "check": {
           "$ref": "#/$defs/Check"
         },
@@ -460,6 +467,14 @@
         "of": {
           "type": "integer",
           "minimum": 1
+        },
+        "after": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "Indices of the parts this one waits for. Default: the part before it. Empty means it may start at any time; parts not downstream of each other may run in separate sessions at once."
         },
         "assumes": {
           "type": "string",

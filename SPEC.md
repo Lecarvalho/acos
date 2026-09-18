@@ -47,7 +47,9 @@ delegates to subagents of the same provider, or calls external models.
 | **Limits** | Project-level ceilings for one session: orchestrator tokens, worker tokens, agents, stages. Set in `.acos.yaml`. |
 | **Manifest** | The composed, per-run document. Approved at GO. The *planned* manifest. |
 | **Plan** | An ordered set of manifests that together complete one intent too big for a single session. Each manifest is a part, sized to the limits, meant to run in its own session. |
-| **Part** | One manifest inside a plan. Carries its index and what it assumes done before it. |
+| **Part** | One manifest inside a plan. Carries its index, what it assumes done before it, and which parts it waits for. Parts that wait for none of each other may run in parallel sessions. |
+| **Slice** | A set of files one implementer owns for the length of a stage. Slices in one part are disjoint, so their stages can run at the same time. |
+| **Fan-out** | A part whose orchestrator plans once, then hands each slice to its own worker in parallel and verifies the merged tree. The only shape in which delegation saves time. |
 | **Drift** | Any difference between the planned manifest and what ran: a stage added, dropped, or re-ordered, a model or effort changed, a check changed. Logged, never re-approved. |
 | **Run log** | `runs/<run-id>/log.yaml`: what ran, stage by stage, with check results, drift and actual counts. With the manifest it is the whole record of a run. |
 | **Calibration** | A project-level note, derived from past runs, that says how this repo tends to behave. Read at compose time. |
@@ -76,9 +78,30 @@ drifts to whatever the limit allows.
   the whole: how many parts, what each does, what each costs, and the
   total. That is the cost of the task before any of it runs.
 
+**Slices and fan-out.** The limits on files and lines bound what one
+implementer holds in its head, not what one session may do. When the
+counted files fall into two or more groups that share no file, and each
+group is worth an implementer of its own (about three files or more), the
+orchestrator may compose one part with a slice per group instead of a part
+per group: one inline `plan` stage reads the area once and writes a brief
+per slice; an `implement` stage per slice, delegated to a balanced-tier
+model, runs in parallel with the others; one inline `verify` runs on the
+merged tree. Each slice must fit `limits.files` and `limits.lines` on its
+own; the number of slices is capped by `limits.agents`. A file two groups
+both need (a shared stylesheet, a types module) is owned by exactly one
+slice or moved into a small part that runs first. Fan-out is not taken for
+a single group: there the orchestrator implements inline, which is
+cheaper and faster than one delegation.
+
+**Order between parts.** A part names the parts it waits for. The default
+is the part before it, which keeps plans sequential. Parts in different
+subtrees that wait for none of each other may run at the same time in
+separate sessions; the plan says so, and the user decides whether to open
+a second terminal.
+
 A plan is made once and run part by part, each part in its own fresh
-session, in order. The planning session usually ends after the plan is
-shown. Nothing forces that: a small part may run in the same session, and
+session, in the order the plan allows. The planning session usually ends
+after the plan is shown. Nothing forces that: a small part may run in the same session, and
 a single manifest that fits may run right away. The orchestrator says
 which it recommends and why, in one line.
 
@@ -140,7 +163,11 @@ human-authored choice, never a preset default.
 
 - The manifest is written to `runs/<run-id>/manifest.yaml` before the first
   stage starts. It is never edited afterwards.
-- Stages run in order. A stage's `adapter` decides how it runs.
+- Stages run in order. A stage's `adapter` decides how it runs. Consecutive
+  delegated stages whose `inputs` do not name each other's `outputs` and
+  whose `owns` lists share no path run at the same time; the summary marks
+  them before GO. A stage whose `owns` overlaps a concurrent stage's is a
+  compose error.
 - Each stage produces a stage record in `runs/<run-id>/log.yaml`: start, end,
   provider, model, tokens (only when the adapter reports them), outcome, and
   the shortest decisive check output.
@@ -264,7 +291,14 @@ they can check, captured with `{{ project.shot }}` into
 `artifacts/shots/` and carrying a one or two line caption. It is the
 part's evidence rather than its summary: the caption says what the crop
 shows, and a crop that disagrees with its caption is a defect in the part.
-A part with no visible surface writes none.
+The `evidence` stage that produces it is delegated by default, so the
+pixels never enter the orchestrator's context: the implementer ends its
+report with one capture line per claim, a balanced-tier worker runs the
+captures, looks at each crop, captions it and writes the page, and its
+first line is a verdict. `VERDICT: FAIL` on a crop that does not show its
+claim is a failed check, handled like a failed review: fixed inline,
+recaptured, never deferred. The stage runs while the orchestrator writes
+the handoff. A part with no visible surface writes none.
 
 The final report includes: manifest id, outcome, each stage's outcome and
 iterations, drift in one line each, actual versus estimated counts where
@@ -313,11 +347,15 @@ part:
   plan: 2026-09-16-auth-hardening   # plan id; the plan file is runs/<plan>/plan.yaml
   index: 2
   of: 3
+  after: [1]                        # parts this one waits for; default: the part before it
   assumes: "Part 1 done: refresh-on-401 merged, tests in tests/auth/refresh.test.ts."
 ```
 
 `assumes` states what the part expects to find in the tree when it
-starts, so a fresh session can check it before GO.
+starts, so a fresh session can check it before GO. `after` lists the parts
+whose work this one builds on; `[]` means it may start at any time. Two
+parts neither of which is downstream of the other may run in separate
+sessions at once.
 
 ### 3.3 Scope (optional)
 
@@ -343,6 +381,8 @@ scope:
   effort: low | medium | high | max   # provider-agnostic; adapters map it
   inputs: [string]          # names of prior stage outputs this stage reads
   outputs: [string]         # names this stage produces
+  owns: [string]            # files or directories only this stage writes; required
+                            # on a delegated stage that runs alongside another
   check: Check              # optional
   on_fail: retry | escalate | ask | stop
   max_iterations: int       # overrides loop default
@@ -463,6 +503,25 @@ Delegation costs tokens twice: the worker's own context, and the
 orchestrator's prompt and result. The default is therefore `inline`, and a
 stage is delegated only when isolation, independence or parallelism buys
 more than that overhead.
+
+Two things make the second reading cheap enough to pay for. A delegated
+stage runs on a cheaper tier than the orchestrator: a balanced-tier
+implementer reads the same files at a fraction of the price, and a
+fast-tier worker runs a script for almost nothing. And the worker's
+context dies when it returns, while everything the orchestrator reads is
+sent again on every later turn of the session. Tier by role, unless a
+project or preset says otherwise:
+
+| Role | Tier | Why |
+|------|------|-----|
+| size, compose, plan, brief, handoff | orchestrator (strong) | judgement, reads once |
+| implement inside a fan-out | balanced | follows a brief, re-reads only its slice |
+| evidence (capture, look, caption) | balanced | runs a script and must see the crop |
+| review | strong | independent judgement over the whole diff |
+| verify | none | a command |
+
+A single-slice implement stays inline: one delegation there is a second
+read with no parallelism to pay for it.
 
 ---
 
@@ -586,6 +645,13 @@ Based on 6 runs, 2026-09-10 to 2026-09-16. Last calibrated 2026-09-16.
 - any subagent: about 150k before its first edit, then 15k per file.
 - review, subagent: about 200k worker tokens; failed first time in 2 of 6
   runs, fix inline cost about 30k.
+- fan-out implementer, balanced tier: about 180k per slice; passed verify
+  first time in 5 of 6 slices. Two-slice parts took 14 minutes of work
+  against 22 for the same files in sequence.
+- evidence, balanced subagent: about 60k; 2 of 9 crops failed their
+  caption and were recaptured in the part.
+- between parts: median 25 minutes from one part's end to the next
+  part's start.
 
 ## Recurring drift
 - verify command extended with `pnpm typecheck` in 3 runs. Consider
@@ -630,21 +696,24 @@ parts:
   - index: 2
     dir: 2-logout
     summary: "Logout endpoint and UI action."
+    after: [1]
     estimate: { files: 5, orchestrator_tokens: 95000, worker_tokens: 0, agents: 0 }
     status: planned
   - index: 3
     dir: 3-session-persistence
-    summary: "Persist session across reloads."
-    estimate: { files: 4, orchestrator_tokens: 85000, worker_tokens: 0, agents: 0 }
+    summary: "Persist session across reloads. Two slices: storage adapter, client wiring."
+    after: [1]                      # not on 2: may run alongside it
+    estimate: { files: 7, orchestrator_tokens: 60000, worker_tokens: 380000, agents: 2 }
     status: planned
-estimate: { orchestrator_tokens: 255000, worker_tokens: 0, agents: 0, sessions: 3 }
+estimate: { orchestrator_tokens: 250000, worker_tokens: 380000, agents: 2, sessions: 3 }
 ```
 
 Every part's manifest is complete on its own: it can be attached to a
 work item and run months later in a session that knows nothing else. The
-plan file is the index and the running status. Parts run in order; a
-part's manifest may state in `part.assumes` what it expects earlier parts
-to have left in the tree.
+plan file is the index and the running status. Parts run in the order
+`after` allows; a part's manifest may state in `part.assumes` what it
+expects earlier parts to have left in the tree. A part with more than one
+slice is one session with several workers, and `sessions` counts it once.
 
 ---
 
