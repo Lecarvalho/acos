@@ -28,8 +28,8 @@ prompt: |
   `--height` and `--dpr` size the viewport. A capture prints one line,
   `<path>  <W>x<H>  <bytes> bytes`, and exits 0; every failure prints one
   `shot: …` line and its own exit code (3 no browser, 5 timeout, 6 no
-  match, 7 empty box, 8 no image). Report a failing exit code with its
-  line; do not debug the page.
+  match, 7 empty box, 8 no image, 9 browser transport). Report a failing
+  exit code with its line; do not debug the page.
 
   Open every PNG and look at it. Then write `runs/<id>/artifacts/try-it.md`:
   what a reader does to see this change, and per claim one crop,

@@ -10,7 +10,7 @@ models:
   strong: claude-opus-5          # planning, review, escalation
 
 # This repository has no test runner: it is Markdown, YAML, one JSON schema
-# and one dependency-free Node script. Verify is therefore the two checks it
+# and one Node script. Verify is therefore the two checks it
 # can actually fail — the script parses, and the schema compiles under the
 # draft the README tells contributors to validate manifests against.
 verify: "node --check skills/acos/scripts/shot.mjs && npx --yes ajv-cli@5 compile --spec=draft2020 -s schema/acos.schema.json"

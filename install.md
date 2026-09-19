@@ -57,7 +57,10 @@ it by hand.
 cropped screenshots a part's try-it page is built from. A project whose
 interface is not a web page points the key at its own capture command; one
 with no visible surface removes the key, and parts simply close without
-captures.
+captures. The script automatically reuses Codex's bundled Playwright runtime
+when it is available and falls back to its dependency-free CDP transport in
+Claude or a standalone Node session. Set `ACOS_PLAYWRIGHT` to a Playwright
+package directory for another bundled layout, or to `off` to force CDP.
 
 Presets are optional. The first runs compose stages ad hoc from the
 blocks. When a run's shape is worth keeping:
