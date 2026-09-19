@@ -7,9 +7,9 @@ describes how an agentic coding session will be executed **before** any model
 spends tokens on the work itself.
 
 The goal is control before spend, at the lowest possible overhead. The user
-sees which model, which effort, how many steps and roughly how many tokens a
-task will take, agrees to it, and then the orchestrator works without
-interruption. What actually happened is written down at the end, and later
+sees which model, which effort where one can be set, how many steps and
+roughly how many tokens a task will take, agrees to it, and then the
+orchestrator works without interruption. What actually happened is written down at the end, and later
 runs are calibrated from it.
 
 The lifecycle is always the same:
@@ -40,7 +40,7 @@ delegates to subagents of the same provider, or calls external models.
 |------|---------|
 | **Orchestrator** | The model or session that composes the manifest and drives execution. It usually also does most of the work. |
 | **Block** | A reusable unit of work with one role (explore, plan, implement, review, verify, ...). Blocks live in the catalog. |
-| **Stage** | A block instantiated inside a manifest, with concrete provider, model, effort, and adapter. |
+| **Stage** | A block instantiated inside a manifest, with an adapter and, when it is delegated, a concrete provider, model and effort. An inline stage has the session's, which the manifest cannot set. |
 | **Adapter** | How a stage is executed: `inline`, `subagent`, `workflow`, or `external`. |
 | **Preset** | A named, ordered set of blocks plus loop and gate defaults. Optional. |
 | **Catalog** | The project's collection of providers, blocks, and presets. |
@@ -50,6 +50,8 @@ delegates to subagents of the same provider, or calls external models.
 | **Part** | One manifest inside a plan. Carries its index, what it assumes done before it, and which parts it waits for. Parts that wait for none of each other may run in parallel sessions. |
 | **Slice** | A set of files one implementer owns for the length of a stage. Slices in one part are disjoint, so their stages can run at the same time. |
 | **Fan-out** | A part whose orchestrator plans once, then hands each slice to its own worker in parallel and verifies the merged tree. The only shape in which delegation saves time. |
+| **Vertical cut** | A part or slice that carries one capability through every layer it touches, so a file has exactly one owner in the whole plan. Its opposite, one layer per part, makes every later part re-read what an earlier part already read. |
+| **Startup load** | What a session or a worker holds before it reads a line of the repo: system prompt, tool schemas, MCP servers, project memory, skill descriptions. Measured once by `init` into `.acos.yaml`, and the floor every estimate starts from. |
 | **Drift** | Any difference between the planned manifest and what ran: a stage added, dropped, or re-ordered, a model or effort changed, a check changed. Logged, never re-approved. |
 | **Run log** | `runs/<run-id>/log.yaml`: what ran, stage by stage, with check results, drift and actual counts. With the manifest it is the whole record of a run. |
 | **Calibration** | A project-level note, derived from past runs, that says how this repo tends to behave. Read at compose time. |
@@ -78,9 +80,40 @@ drifts to whatever the limit allows.
   the whole: how many parts, what each does, what each costs, and the
   total. That is the cost of the task before any of it runs.
 
+**Nothing starts at zero.** A session holds its harness before it reads
+a line of the repo: system prompt, tool schemas, MCP servers, project
+memory, skill descriptions. `.acos.yaml` records that startup load
+(section 6), measured once by `init`. What a part may spend on the work
+is `limits.orchestrator_tokens` minus `startup.orchestrator`, and a
+delegated stage's floor starts at `startup.subagent`. An estimate that
+ignores it is wrong by a fixed amount on every part, always in the same
+direction.
+
+**Cut vertically.** Group the counted files so each file has exactly one
+owner in the plan, and cut along what the change does — a capability, a
+route, a screen, carried through every layer it touches — not along what
+the files are. One layer per part (all models, then all services, then
+all views) makes every part read files an earlier part already read, and
+the plan pays for the same file two or three times, each time behind a
+fresh session's startup. A file two capabilities both need goes to the
+earliest part that needs it; later parts take it as given through
+`assumes`, and the plan says so in one line. A file owned by three or
+more parts means the cut is horizontal: recut. Each part lists its files
+in `owns` (section 8), so overlap is visible before GO.
+
+**One more agent before one more part.** Splitting an intent costs a
+whole session's startup, a handoff written and read, and the gap between
+sessions. Adding a worker inside a part costs that worker's startup, on
+a cheaper tier, in parallel, and it dies when it returns. So when the
+counted work does not fit one context, the first move is slices in one
+session, and a new part only when the work has a real dependency, or the
+session could not verify the merged tree, or the slices together would
+outgrow what one session can hold at once.
+
 **Slices and fan-out.** The limits on files and lines bound what one
-implementer holds in its head, not what one session may do. When the
-counted files fall into two or more groups that share no file, and each
+implementer holds in its head, not what one session may do: a session
+running three slices may legitimately touch three times `limits.files`.
+When the counted files fall into two or more groups that share no file, and each
 group is worth an implementer of its own (about three files or more), the
 orchestrator may compose one part with a slice per group instead of a part
 per group: one inline `plan` stage reads the area once and writes a brief
@@ -91,7 +124,9 @@ own; the number of slices is capped by `limits.agents`. A file two groups
 both need (a shared stylesheet, a types module) is owned by exactly one
 slice or moved into a small part that runs first. Fan-out is not taken for
 a single group: there the orchestrator implements inline, which is
-cheaper and faster than one delegation.
+cheaper and faster than one delegation — unless what remains of its
+budget after startup cannot hold that group, and then the group goes to
+one implementer rather than to a second part.
 
 **Order between parts.** A part names the parts it waits for. The default
 is the part before it, which keeps plans sequential. Parts in different
@@ -107,7 +142,9 @@ which it recommends and why, in one line.
 
 Token figures come from calibration notes when present, otherwise from
 the skill's built-in floors (a subagent costs about 150k before it writes
-a line; a review about 200k and is expected to fail once). Within a plan,
+a line; a review about 200k and is expected to fail once). Worker floors
+are measured end to end and already contain the worker's startup load;
+the orchestrator's is added once per part, on top. Within a plan,
 the actual/estimate ratio of parts already run scales the parts still to
 run, and a part that no longer fits is re-cut before its GO. Parts whose
 estimates all sit just under a limit are a sign of fitting the guess to
@@ -140,7 +177,8 @@ short: a header and one line per stage. The user must be able to read
 from it:
 
 - intent, and the part index if the manifest belongs to a plan
-- ordered stages with adapter, provider, model, effort
+- ordered stages with adapter, and provider, model and effort for the
+  delegated ones; an inline stage shows the session instead
 - the estimate against the limits
 - where the full file is
 
@@ -191,7 +229,7 @@ After a stage with a `check`, the orchestrator evaluates the check:
 | Value | Behaviour |
 |-------|-----------|
 | `retry` | Run the same stage again, up to `max_iterations`. |
-| `escalate` | Run the same stage again with the next model in `escalation`. When the list is exhausted, behave as `retry`. |
+| `escalate` | Run the same stage again with the next model in `escalation`. When the list is exhausted, behave as `retry`. From an inline stage the retry is delegated to that model: a session cannot change its own model or effort. |
 | `ask` | Pause and ask the user. |
 | `stop` | End the run, report failure. |
 
@@ -246,7 +284,6 @@ stages:
     adapter: inline
     provider: anthropic
     model: claude-opus-5
-    effort: high
     started: "2026-09-17T10:20:04-04:00"
     ended: "2026-09-17T10:23:22-04:00"
     check: none
@@ -256,7 +293,6 @@ stages:
     adapter: inline
     provider: anthropic
     model: claude-opus-5
-    effort: medium
     started: "2026-09-17T10:23:22-04:00"
     ended: "2026-09-17T10:30:55-04:00"
     check: "npm run verify:fast && npm run test:ui"
@@ -270,6 +306,10 @@ actual:
   agents: 0
   worker_tokens: 0          # only what adapters reported
 ```
+
+A stage record carries `effort` only when the stage was delegated. An
+inline stage ran at the session's model and effort, which nothing in the
+manifest could set; the log names the model when the harness exposes it.
 
 Token counts in the log are measured or absent, never estimated. An
 orchestrator cannot measure its own use, and a guess recorded as `actual`
@@ -377,8 +417,9 @@ scope:
   role: string              # what this stage does, one line
   adapter: inline | subagent | workflow | external
   provider: string          # catalog provider key, e.g. anthropic, openai, ollama
-  model: string             # provider model id
-  effort: low | medium | high | max   # provider-agnostic; adapters map it
+                            # delegated stages only
+  model: string             # provider model id; delegated stages only
+  effort: low | medium | high | max   # delegated stages only; adapters map it
   inputs: [string]          # names of prior stage outputs this stage reads
   outputs: [string]         # names this stage produces
   owns: [string]            # files or directories only this stage writes; required
@@ -392,6 +433,16 @@ scope:
 ```
 
 `ModelRef` is `{provider, model, effort?}`.
+
+`provider`, `model` and `effort` belong to a delegated stage. An inline
+stage carries none of them: it runs in the session that is executing the
+manifest, whose model and reasoning effort are fixed for the whole
+session and which no stage can change. A manifest that gives its inline
+stages an effort each is describing something no runner can do. Work
+that needs a different model or a different effort is delegated, or is a
+part of its own, started in a session set up for it. `on_fail: escalate`
+on an inline stage therefore delegates the retry to the escalation model
+(section 2.6).
 
 ### 3.5 Check
 
@@ -430,8 +481,10 @@ intent into a plan of parts and cap delegation. Nothing checks them mid-run.
 
 ```yaml
 limits:
-  files: 8                      # created or edited per run, tests included
-  lines: 400                    # added plus removed per run
+  files: 8                      # created or edited per context (an inline part, or
+                                # one slice), tests included; a fan-out session
+                                # legitimately totals more
+  lines: 400                    # added plus removed, same per-context meaning
   orchestrator_tokens: 100000   # context the orchestrating session may spend
   worker_tokens: 300000         # sum over subagents, workflows and external calls,
                                 # as the harness reports them (re-read context included)
@@ -454,6 +507,8 @@ rough; actual token counts are measured or absent (2.8).
 estimate:
   files: 4
   lines: 180
+  startup_tokens: 40000         # part of orchestrator_tokens: what the session
+                                # held before it read anything (section 6)
   orchestrator_tokens: 90000
   worker_tokens: 0
   agents: 0
@@ -462,7 +517,7 @@ estimate:
       tokens: 90000
   cost: 0.80                    # optional
   currency: USD
-  basis: "calibration.md: inline implement in this repo runs 40k + 12k per file"
+  basis: "startup 40k measured 2026-09-18; calibration.md: inline implement in this repo runs 40k + 12k per file"
 ```
 
 ### 3.10 Drift
@@ -512,16 +567,23 @@ context dies when it returns, while everything the orchestrator reads is
 sent again on every later turn of the session. Tier by role, unless a
 project or preset says otherwise:
 
-| Role | Tier | Why |
-|------|------|-----|
-| size, compose, plan, brief, handoff | orchestrator (strong) | judgement, reads once |
-| implement inside a fan-out | balanced | follows a brief, re-reads only its slice |
-| evidence (capture, look, caption) | balanced | runs a script and must see the crop |
-| review | strong | independent judgement over the whole diff |
-| verify | none | a command |
+| Role | Tier | Effort | Why |
+|------|------|--------|-----|
+| size, compose, plan, brief, handoff | orchestrator (strong) | the session's | judgement, reads once |
+| explore (map an unknown area) | balanced | low | a wide read whose result is one page |
+| implement inside a fan-out | balanced | medium | follows a brief, re-reads only its slice |
+| evidence (capture, look, caption) | balanced | low | runs a script and must see the crop |
+| review | strong | high | independent judgement over the whole diff |
+| verify | none | — | a command |
+
+Effort is a setting of a delegated stage. Inline stages run at whatever
+the session runs at; that is why the orchestrator's row names no level.
 
 A single-slice implement stays inline: one delegation there is a second
-read with no parallelism to pay for it.
+read with no parallelism to pay for it. The exception is budget: when
+what remains of the orchestrator's tokens after its startup load cannot
+hold the slice, the slice is delegated to one implementer, which is
+cheaper than the fresh session a second part would need.
 
 ---
 
@@ -558,8 +620,9 @@ anthropic:
 name: implement
 role: "Make the change described by the plan."
 default:
-  adapter: inline
-  effort: medium
+  adapter: inline           # no effort: an inline stage takes the session's.
+                            # A delegated instance takes it from the role
+                            # table in section 4.
 inputs: [plan]
 outputs: [diff]
 check:
@@ -575,8 +638,8 @@ prompt: |
 name: plan-build-review
 description: "Planner, implementer, reviewer as three stages."
 stages:
-  - { block: plan,      adapter: inline,   effort: high }
-  - { block: implement, adapter: inline,   effort: medium,
+  - { block: plan,      adapter: inline }
+  - { block: implement, adapter: inline,
       on_fail: escalate, escalation: [{ provider: anthropic, model: claude-opus-5 }] }
   - { block: review,    adapter: subagent, effort: high }
 loop: { max_iterations: 3, on_fail: retry }
@@ -599,6 +662,10 @@ models:
 verify: "npm test"
 shot: "node .claude/skills/acos/scripts/shot.mjs"
 gates: { go: required }
+startup:
+  orchestrator: 40000         # what a session of this project holds before it reads
+  subagent: 25000             # what a fresh worker holds before its first read
+  basis: "claude code /context, empty session, 2026-09-18"
 limits:
   files: 8
   lines: 400
@@ -618,9 +685,19 @@ interface is not a web page points it at its own, and one with no visible
 surface leaves the key out, which is what tells the orchestrator to
 compose no evidence stage.
 
+`startup` is the session's floor: system prompt, tool schemas, MCP
+servers, project memory and skill descriptions, measured once by `init`
+and written with the date and method in `basis`. It moves whenever the
+project gains an MCP server, a skill or a memory file, so `init` is
+re-run then. When the key is absent, the orchestrator assumes 40000 for
+a session and 25000 for a worker and says so in the estimate basis.
+
 `limits` is the contract the user cares about most: it is what turns a
 large intent into a plan of parts, and what caps delegation. When absent,
 the orchestrator uses its own judgement and says so in the estimate basis.
+`limits.files` and `limits.lines` bound one context — an inline part or
+one slice of a fan-out — so a session running several slices may exceed
+them in total on purpose.
 
 ---
 
@@ -650,6 +727,8 @@ Based on 6 runs, 2026-09-10 to 2026-09-16. Last calibrated 2026-09-16.
   against 22 for the same files in sequence.
 - evidence, balanced subagent: about 60k; 2 of 9 crops failed their
   caption and were recaptured in the part.
+- session startup: 40k, measured 2026-09-12. Parts miss their estimate
+  by about that much when it is left out, and by nothing when it is in.
 - between parts: median 25 minutes from one part's end to the next
   part's start.
 
@@ -657,6 +736,9 @@ Based on 6 runs, 2026-09-10 to 2026-09-16. Last calibrated 2026-09-16.
 - verify command extended with `pnpm typecheck` in 3 runs. Consider
   changing `.acos.yaml` verify.
 - explore stage dropped every time it was planned.
+- every part since 2026-09-14 ran about 30k over its orchestrator
+  estimate, by the same amount: `.acos.yaml` `startup` predates the two
+  MCP servers added that week. Re-run `/acos init`.
 
 ## Notes
 - First `pnpm test` after a checkout takes 4 minutes; do not count it as a
@@ -690,23 +772,33 @@ parts:
   - index: 1
     dir: 1-refresh-on-401
     summary: "Silent refresh on 401 in AuthClient, with tests."
-    estimate: { files: 3, orchestrator_tokens: 75000, worker_tokens: 0, agents: 0 }
+    owns: [src/auth/client.ts, src/auth/refresh.ts, tests/auth/refresh.test.ts]
+    estimate: { files: 3, startup_tokens: 40000, orchestrator_tokens: 75000, worker_tokens: 0, agents: 0 }
     actual:   { files: 4, orchestrator_tokens: 90000, worker_tokens: 0, agents: 0 }
     status: done          # planned | done | failed
   - index: 2
     dir: 2-logout
     summary: "Logout endpoint and UI action."
+    owns: [src/auth/logout.ts, src/api/routes/logout.ts, src/ui/AccountMenu.tsx, tests/auth/logout.test.ts]
     after: [1]
-    estimate: { files: 5, orchestrator_tokens: 95000, worker_tokens: 0, agents: 0 }
+    estimate: { files: 5, startup_tokens: 40000, orchestrator_tokens: 95000, worker_tokens: 0, agents: 0 }
     status: planned
   - index: 3
     dir: 3-session-persistence
     summary: "Persist session across reloads. Two slices: storage adapter, client wiring."
+    owns: [src/auth/storage/, src/auth/session.ts, src/ui/SessionBoundary.tsx, tests/auth/session.test.ts]
     after: [1]                      # not on 2: may run alongside it
-    estimate: { files: 7, orchestrator_tokens: 60000, worker_tokens: 380000, agents: 2 }
+    estimate: { files: 7, startup_tokens: 40000, orchestrator_tokens: 60000, worker_tokens: 380000, agents: 2 }
     status: planned
 estimate: { orchestrator_tokens: 250000, worker_tokens: 380000, agents: 2, sessions: 3 }
 ```
+
+`owns` is the part's files, and the plan's cut is checkable from it: a
+path appears under one part, or the plan says in one line why a second
+part must write it too. Paths under three or more parts mean the cut
+ran along layers instead of capabilities (section 2.1) and the plan is
+recut rather than approved. The total `orchestrator_tokens` counts one
+`startup_tokens` per session, which is the honest price of a part more.
 
 Every part's manifest is complete on its own: it can be attached to a
 work item and run months later in a session that knows nothing else. The

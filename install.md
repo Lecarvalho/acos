@@ -37,9 +37,21 @@ In Claude Code, run:
 ```
 
 The skill inspects the repo (test/lint scripts, installed provider CLIs,
-catalog model tiers) and writes `.acos.yaml`. It asks only if the verify
-command is a guess. `.acos.example.yaml` in this repo shows the shape if
-you prefer to write it by hand.
+catalog model tiers) and writes `.acos.yaml`. It asks only about what it
+cannot read off the repo: the verify command when nothing named it, and
+the session's startup load.
+
+That startup load is the `startup` block: what a session of this project
+holds before it reads a line of code — system prompt, tool schemas, MCP
+servers, memory, skill descriptions — and what a fresh subagent holds.
+Every estimate starts from it instead of from zero, so init asks you to
+run `/context` once in a fresh session and paste the numbers; without a
+paste it estimates and says so. Re-run `/acos init` after adding an MCP
+server, a skill or a memory file: the number moves, and every estimate
+moves with it.
+
+`.acos.example.yaml` in this repo shows the shape if you prefer to write
+it by hand.
 
 `shot` is left pointing at the copied `scripts/shot.mjs`, which captures the
 cropped screenshots a part's try-it page is built from. A project whose

@@ -11,9 +11,10 @@ several manifests, each sized for its own session, written to disk up
 front so the user sees the whole cost and can run each part whenever
 they like, in a fresh session, or attach them to a work item. The
 manifest says which stages run, on which provider and model, at what
-effort, with how many agents, and roughly how many tokens. When the plan
-turns out wrong mid-run the orchestrator adjusts, logs the drift and keeps
-going; at the end it closes the run log with what actually ran.
+effort where a model can be told one, with how many agents, and roughly
+how many tokens — counted from what the session already holds at
+startup, not from zero. When the plan turns out wrong mid-run the
+orchestrator adjusts, logs the drift and keeps going; at the end it closes the run log with what actually ran.
 `/acos calibrate` reads those over time so the next manifest for this
 repo is closer to right.
 
@@ -56,22 +57,43 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
   it to `auto`. Presets cannot.
 - **Limits and estimates are advisory.** Limits (orchestrator tokens,
   agents, stages) shape the manifest and split big tasks into a plan at
-  compose time.
+  compose time. `files` and `lines` bound one context — an inline part or
+  one slice — not one session.
   Nothing checks them mid-run; `/acos calibrate` does, afterwards.
 - **One session per manifest.** A plan's parts are complete manifests
   meant for fresh sessions. The planning session often ends at the plan.
   Not a hard rule; small parts may run where they were planned.
-- **Inline by default.** The orchestrator does the work. A stage is
-  delegated only when independence, isolation or parallelism pays for the
-  round trip. Three files do not get ten subagents.
+- **A session does not start at zero.** `.acos.yaml` records the startup
+  load — system prompt, tools, MCP servers, memory, skills — measured by
+  `/acos init`. Sizing subtracts it before anything else, so the budget
+  a part really has is the limit minus what the session already spent
+  being itself.
+- **Inline by default, for work one context should hold.** The
+  orchestrator does the work. A stage is delegated when independence,
+  isolation, parallelism or a budget that cannot hold the read pays for
+  the round trip. Three files do not get ten subagents.
+- **One more agent before one more part.** Another part costs a whole
+  session's startup plus a handoff written and read; another worker
+  costs its own startup on a cheaper tier, in parallel, and dies when it
+  returns. Work that does not fit is sliced inside the part first.
+- **Cuts are vertical.** A part carries one capability through every
+  layer it touches, and every file has exactly one owner in the plan. A
+  layer per part makes each part re-read what the last one read. Where
+  an overlap is unavoidable it gets one owner and is stated in the cut.
+- **Effort belongs to delegated stages.** The orchestrating session's
+  model and reasoning effort are fixed for its whole life, so inline
+  stages carry neither, and a manifest never promises step 1 at high and
+  step 3 at low. A stage that needs different ones is delegated.
 - **Fan-out when slices are disjoint.** Two or more groups of files that
   share nothing become one part: the orchestrator plans once and writes a
   brief per slice, a balanced-tier implementer per slice runs in parallel
   owning only its files, verify runs on the merged tree. The second read
   is paid at the cheaper tier and never lands in the orchestrator's
-  context. One group stays inline.
+  context. One group stays inline, unless the orchestrator's remaining
+  budget cannot hold it.
 - **Tier by role.** Plan, brief and handoff on the session model;
-  implementers in a fan-out and the evidence worker on the balanced tier;
+  explorers, implementers in a fan-out and the evidence worker on the
+  balanced tier;
   review on the strong tier; verify on none. Screenshots are captured and
   looked at by the evidence worker, so pixels never enter the
   orchestrator's context, and its verdict is a check the part must pass.

@@ -9,15 +9,23 @@ returns text (the stage output) plus, when available, token counts.
 The orchestrator does the work itself in the current session.
 
 - Use the session's own tools (read, edit, run commands).
-- `provider` and `model` may be omitted; the session model is used.
-- Map `effort` to your own behaviour: `low` means minimal exploration and
-  terse output, `high` and `max` mean read more before acting.
+- `provider`, `model` and `effort` are absent, and the schema rejects
+  them here. The stage runs on the session's model at the session's
+  reasoning effort, both fixed for the session's whole life: a manifest
+  cannot raise effort for one stage and lower it for the next, and a
+  summary that shows it is describing something no runner can do. How
+  deeply the stage works belongs in the block prompt, not in an effort
+  field.
+- The session's startup load (`.acos.yaml` `startup.orchestrator`) was
+  spent before the first stage began. It belongs in the estimate, not in
+  the stage record.
 - Tokens: not reported by the harness. Leave `tokens` out of the stage
   record; do not estimate.
-- Escalation on an inline stage: if the next `escalation` entry names
-  the session model, raise effort and retry inline. If it names a
-  different model, run the retry as a `subagent` with that model, count it
-  against `limits.agents`, and log `adapter_used: subagent`.
+- Escalation on an inline stage always delegates: run the retry as a
+  `subagent` on the `escalation` entry's model and effort — even when it
+  names the session model, since the session cannot raise its own
+  effort — count it against `limits.agents`, and log the iteration with
+  `adapter: subagent`.
 
 Best for: nearly everything. Plan, implement, verify, and review of small
 changes. This is the default adapter.
@@ -42,6 +50,9 @@ Spawn one agent with the Agent tool.
   output.
 - Tokens: log the total the Agent tool result reports, if any. Never an
   estimate.
+- Startup: a fresh agent pays its own harness load (`.acos.yaml`
+  `startup.subagent`) before your prompt buys anything. The 150k floor
+  in SKILL.md already contains it.
 - Each spawn counts against `limits.agents`. A retry is a new spawn.
 
 Parallel stages: consecutive `subagent` stages that share no

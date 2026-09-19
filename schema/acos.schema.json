@@ -80,7 +80,7 @@
         "high",
         "max"
       ],
-      "description": "Provider-agnostic effort level. Adapters map it to provider-specific settings."
+      "description": "Provider-agnostic effort level, on delegated stages only. Adapters map it to provider-specific settings. An inline stage runs at the session's effort, which no manifest can change."
     },
     "OnFail": {
       "type": "string",
@@ -229,11 +229,11 @@
         },
         "provider": {
           "type": "string",
-          "description": "Catalog provider key. May be omitted when adapter is inline."
+          "description": "Catalog provider key. Delegated stages only; must be absent when adapter is inline."
         },
         "model": {
           "type": "string",
-          "description": "Provider model id. May be omitted when adapter is inline."
+          "description": "Provider model id. Delegated stages only; must be absent when adapter is inline."
         },
         "effort": {
           "$ref": "#/$defs/Effort"
@@ -286,7 +286,43 @@
           "type": "string",
           "description": "Extra instructions appended to the block prompt for the worker."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "adapter"
+            ],
+            "properties": {
+              "adapter": {
+                "const": "inline"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "provider"
+                  ]
+                },
+                {
+                  "required": [
+                    "model"
+                  ]
+                },
+                {
+                  "required": [
+                    "effort"
+                  ]
+                }
+              ]
+            },
+            "description": "An inline stage runs in the orchestrating session, whose provider, model and reasoning effort are fixed for the whole session. Delegate the stage, or run it in a session set up for it."
+          }
+        }
+      ]
     },
     "Loop": {
       "type": "object",
@@ -339,9 +375,15 @@
           "minimum": 0,
           "description": "Lines added plus removed."
         },
+        "startup_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Part of orchestrator_tokens: the session's startup load (system prompt, tools, MCP servers, memory, skills) before it reads anything. From .acos.yaml startup.orchestrator."
+        },
         "orchestrator_tokens": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "description": "Total context the orchestrating session is expected to spend, startup_tokens included."
         },
         "worker_tokens": {
           "type": "integer",
@@ -409,17 +451,17 @@
         "files": {
           "type": "integer",
           "minimum": 0,
-          "description": "Files created or edited, tests included."
+          "description": "Files created or edited by one context (an inline part, or one slice of a fan-out), tests included. A session running several slices legitimately totals more."
         },
         "lines": {
           "type": "integer",
           "minimum": 0,
-          "description": "Lines added plus removed."
+          "description": "Lines added plus removed, per context, with the same meaning as files."
         },
         "orchestrator_tokens": {
           "type": "integer",
           "minimum": 0,
-          "description": "Context the orchestrating session may spend."
+          "description": "Context the orchestrating session may spend, its startup load included. What is left for the work is this minus .acos.yaml startup.orchestrator."
         },
         "worker_tokens": {
           "type": "integer",

@@ -7,8 +7,8 @@ acos: "0.1"
 
 provider: anthropic
 models:
-  fast: claude-haiku-4-5         # explore, cheap checks
-  balanced: claude-sonnet-5      # delegated implementers
+  fast: claude-haiku-4-5         # scripted work, cheap checks
+  balanced: claude-sonnet-5      # explorers, fan-out implementers, evidence
   strong: claude-opus-5          # planning, review, escalation
 
 verify: "npm test"               # substituted into {{ project.verify }}
@@ -21,12 +21,25 @@ shot: "node .claude/skills/acos/scripts/shot.mjs"
 gates:
   go: required                   # `auto` only here, never in a preset
 
+# What a session of this project holds before it reads a line of code:
+# system prompt, tool schemas, MCP servers, project memory, skill
+# descriptions. Sizing subtracts startup.orchestrator from
+# limits.orchestrator_tokens, so with the values below a part has 60k to
+# spend, not 100k. `/acos init` measures it; re-run init after adding an
+# MCP server, a skill or a memory file.
+startup:
+  orchestrator: 40000
+  subagent: 25000                # what a fresh worker pays before its first read
+  basis: "claude code /context, fresh session, 2026-09-18"
+
 # Session limits. Advisory and compose-time only: they split big tasks
 # into a plan and cap delegation. files/lines size a part; tokens follow. Nothing checks them mid-run; `/acos calibrate`
 # reports afterwards how often runs outgrew them.
 limits:
-  files: 8                       # created or edited per run, tests included
-  lines: 400                     # added plus removed per run
+  files: 8                       # per context: one inline part, or one slice of a
+                                 # fan-out, tests included. A session running three
+                                 # slices legitimately touches three times this.
+  lines: 400                     # added plus removed, same per-context meaning
   orchestrator_tokens: 100000    # context the orchestrating session may spend
   worker_tokens: 300000          # subagents, workflow agents, external calls combined
   agents: 3                      # delegations per run

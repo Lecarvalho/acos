@@ -5,8 +5,8 @@ acos: "0.1"
 
 provider: anthropic
 models:
-  fast: claude-haiku-4-5         # explore, cheap checks
-  balanced: claude-sonnet-5      # delegated implementers
+  fast: claude-haiku-4-5         # scripted work, cheap checks
+  balanced: claude-sonnet-5      # explorers, fan-out implementers, evidence
   strong: claude-opus-5          # planning, review, escalation
 
 # This repository has no test runner: it is Markdown, YAML, one JSON schema
@@ -23,8 +23,19 @@ shot: "node skills/acos/scripts/shot.mjs"
 gates:
   go: required                   # `auto` only here, never in a preset
 
+# Startup load: what this session holds before it reads a file. Not yet
+# measured with /context; estimated from what loads here (harness system
+# prompt and built-in tools ~20k, the configured MCP servers ~12k, the
+# skill list ~7k, no CLAUDE.md). Sizing subtracts orchestrator from
+# limits.orchestrator_tokens, leaving 60k for the work. Re-run
+# `/acos init` to replace this with a measurement.
+startup:
+  orchestrator: 40000
+  subagent: 22000
+  basis: "estimated 2026-09-18 from the loaded harness surface; no /context reading yet"
+
 limits:
-  files: 8
+  files: 8                       # per context: an inline part, or one slice
   lines: 400
   orchestrator_tokens: 100000
   worker_tokens: 300000

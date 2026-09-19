@@ -22,20 +22,19 @@ scope:
 stages:
   - name: plan
     block: plan
-    adapter: inline
-    effort: high
+    adapter: inline           # no model, no effort: the session's, and fixed
     outputs: [plan]
 
   - name: implement
     block: implement
     adapter: inline
-    effort: medium
     inputs: [plan]
     outputs: [diff]
     check:
       kind: command
       command: "npm test -- auth"
-    on_fail: escalate
+    on_fail: escalate         # the escalated retry runs as a subagent:
+                              # a session cannot change its own model
     escalation:
       - { provider: anthropic, model: claude-opus-5, effort: high }
     max_iterations: 3
@@ -70,14 +69,15 @@ limits:
 estimate:
   files: 3
   lines: 150
-  orchestrator_tokens: 90000
+  startup_tokens: 40000       # already gone when the first stage starts
+  orchestrator_tokens: 90000  # startup included: 40k + 50k of work
   worker_tokens: 200000
   agents: 1
   per_stage:
     - { name: plan,      tokens: 15000 }
-    - { name: implement, tokens: 75000 }
+    - { name: implement, tokens: 35000 }
     - { name: review,    tokens: 200000 }
-  basis: "calibration.md Cost section; review at the 200k subagent floor"
+  basis: "startup 40k from .acos.yaml, measured 2026-09-18; calibration.md Cost section; review at the 200k subagent floor"
 
 outputs:
   run_dir: runs/2026-09-16-auth-token-refresh
