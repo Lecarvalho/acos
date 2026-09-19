@@ -110,6 +110,11 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
   compose reads. Runs stay small; learning happens between them.
 - **Nothing to hand-edit.** `/acos init` derives `.acos.yaml` from the
   repo. Presets grow out of real runs, not templates.
+- **Installed files cite only installed paths.** `skills/acos/` and
+  `acos/` are copied into other repositories; `SPEC.md`, `schema/` and
+  `install.md` stay here. A pointer from a copied file to one of them
+  names something the reader cannot open, so the copied files carry the
+  shape they need inline and cite nothing outside themselves.
 
 ## Status
 

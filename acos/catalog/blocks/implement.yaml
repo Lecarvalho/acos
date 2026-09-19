@@ -3,7 +3,7 @@ role: "Make the change described by the plan and get the verify command passing.
 default:
   adapter: inline
   # No effort inline; a delegated implementer (a fan-out slice) runs on
-  # {{ project.models.balanced }} at medium. SPEC.md 4.
+  # {{ project.models.balanced }} at medium.
 inputs: [plan]
 outputs: [diff]
 check:

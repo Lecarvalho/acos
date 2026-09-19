@@ -11,9 +11,8 @@ for one session becomes a plan: several manifests, each sized for its own
 session. Then you do the work, mostly yourself, without stopping for
 re-approval. At the end you write down what actually ran.
 
-Full semantics: `SPEC.md` in the ACOS folder. This file is the operating
-procedure. Adapter details: `references/adapters.md`. Workflow compilation:
-`references/workflow.md`.
+This file is the operating procedure. Adapter details:
+`references/adapters.md`. Workflow compilation: `references/workflow.md`.
 
 ## 0. Locate the catalog
 
@@ -24,9 +23,8 @@ Look, in order, for:
 2. `.claude/skills/acos/catalog/` and `.claude/skills/acos/presets/` (bundled copy)
 
 Read `.acos.yaml` from the repo root if present. If the catalog is missing,
-tell the user ACOS is not installed here and point at `install.md`. Stop.
-If the catalog exists but `.acos.yaml` does not, run **init** (section 7)
-first, then continue.
+tell the user ACOS is not installed here and stop. If the catalog exists
+but `.acos.yaml` does not, run **init** (section 7) first, then continue.
 
 ## Subcommands
 
@@ -243,10 +241,9 @@ runs/<plan-id>/plan.yaml
 runs/<plan-id>/<index>-<slug>/manifest.yaml     one per part
 ```
 
-`plan.yaml` shape is in `SPEC.md` section 8: intent, limits, one entry
-per part (index, dir, summary, `owns`, estimate, status `planned`),
-total estimate with `sessions: <n>` and one `startup_tokens` counted per
-session. Then present the plan, not the manifests:
+`plan.yaml` holds: intent, limits, one entry per part (index, dir,
+summary, `owns`, estimate, status `planned`), total estimate with
+`sessions: <n>` and one `startup_tokens` counted per session. Then present the plan, not the manifests:
 
 ```
 ACOS plan: <plan-id>   Parts: <n>   Sessions: <n>
@@ -298,10 +295,10 @@ Each must therefore be complete on its own: intent, scope, stages,
    `references/workflow.md` and write them under `runs/<id>/`. They are
    part of what the user approves at GO.
 
-Validate the result mentally against `schema/acos.schema.json`: required
-fields present, enums valid, stage names unique, every `inputs` entry
-produced by an earlier stage, estimate within limits. An inline stage
-carries no `provider`, `model` or `effort`: the schema rejects them, and
+Validate the result mentally: required fields present, enums valid,
+stage names unique, every `inputs` entry produced by an earlier stage,
+estimate within limits. An inline stage
+carries no `provider`, `model` or `effort`: they are invalid there, and
 the session could not honour them anyway. If a stage needs a model or an
 effort other than the session's, delegate it. Stages that will run
 at the same time (consecutive delegated stages with no input/output
@@ -370,8 +367,8 @@ On GO:
 
 1. `manifest.yaml` is already in the run directory (written at present,
    rewritten if the user asked for changes before GO). From GO on, never
-   edit it. Start `log.yaml` next to it (shape in `SPEC.md` 2.8) with the
-   manifest id, `sessions` holding this session's id when the harness
+   edit it. Start `log.yaml` next to it with the manifest id,
+   `sessions` holding this session's id when the harness
    exposes one (Claude Code: `claude:` + `CLAUDE_CODE_SESSION_ID`; Codex:
    `codex:` + `CODEX_THREAD_ID`), a start timestamp, and an empty
    `drift: []` list.
@@ -579,9 +576,9 @@ sizing and compose more accurate for this repo.
    stage, part start to part end, and the gap from one part's end to
    the next part's start, so the Cost section can say whether fan-out
    and parallel parts shortened the plan and where the time went.
-5. Write `acos/calibration.md` in the fixed shape from `SPEC.md`
-   section 7: header line with run count, date range and today's date;
-   sections **Shape**, **Cost**, **Recurring drift**, **Notes**. Under
+5. Write `acos/calibration.md` in this fixed shape: a header line with
+   the run count, the date range and today's date; then sections
+   **Shape**, **Cost**, **Recurring drift**, **Notes**. Under
    40 lines. Overwrite the previous file; if it had a **Notes** section,
    keep entries that are still true. Each Recurring drift line that
    points at a config fix (verify command, a block default, a limit)
