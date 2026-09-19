@@ -337,22 +337,41 @@ Write `manifest.yaml` to its run directory first. Then print a summary,
 not the file:
 
 ```
-ACOS run: <id>                      (Part <i> of <n>, plan <plan-id>   when in a plan)
-Intent: <one line>
-Stages: <n>   Agents: <k>/<limit>   Orchestrator: ~<tokens>/<limit> (<startup> startup + <work> work)   Workers: ~<tokens>
-  1. <name>   inline   session   check: <kind>   ~<tokens>
-  2. <name>   subagent   <model>   <effort>   check: <kind>   ~<tokens>   || owns <paths>
-  3. <name>   subagent   <model>   <effort>   check: <kind>   ~<tokens>   || owns <paths>
-  4. <name>   ...
+run: <slug>                              (`part <i> of <n> — <slug>` in a plan)
+intent: <one line>
+budget: ~<tokens> of <limit>   (<startup> startup + <work> work)
+
+| stage | runs on | check | tokens |
+|-------|---------|-------|--------|
+| 1 <name> | inline | <check> | ~<tokens> |
+| 2 <name> | <model>, <effort> | <check> | ~<tokens> |
+
 Manifest: runs/<id>/manifest.yaml
-Workflow script: runs/<id>/workflow-1.js        (only if compiled)
-Reply GO to execute, or tell me what to change.
+Reply GO, or tell me what to change.
 ```
 
-`||` marks stages that run at the same time as the one above them. An
-inline stage prints `session` where a delegated one prints its model,
-and prints no effort: it runs at whatever this session runs at, and
-nothing in the manifest can change that mid-run.
+Every token figure is rounded to thousands: `~176k of 280k`, never
+`~176000/280000`. The precision is not there, and the line is read at a
+glance.
+
+Print nothing that is zero or already visible. No stage count — the table
+has rows. No agent or worker line when nothing is delegated; when
+something is, one line under budget: `agents: 3 of 3   workers: ~450k`.
+No plan id in the header: it is the first segment of the Manifest path
+directly below.
+
+`runs on` is `inline` for a stage this session does, or the model and
+effort for a delegated one — an inline stage never prints an effort,
+because it runs at whatever this session runs at and nothing in the
+manifest can change that mid-run. `check` is the check itself (`full
+verify`, `dotnet test`), not its kind; a stage with `kind: none` prints
+`—`.
+
+A `∥` after the model marks a stage that runs at the same time as the row
+above it. Those stages list their files under the table, one line each
+(`owns: <paths>`), where a long path does not stretch a column. A
+compiled workflow script gets a line there too:
+`Workflow script: runs/<id>/workflow-1.js`.
 
 Then stop. Do not start any stage. Do not spawn any agent. Do not read
 files beyond what sizing and composing needed. For `/acos run` of an
@@ -368,7 +387,8 @@ the terminal, contents in files, and a path the user can open.
 If this session already carries a lot of context (a long conversation
 before `/acos`, wide exploration while sizing), add one line recommending
 `/acos run <path>` in a fresh session instead of GO here. Judgement, not
-a rule.
+a rule. It goes between the Manifest line and the GO prompt, so the last
+line printed is the one asking for a decision.
 
 If the user asks for changes, produce a new manifest and present again.
 If `.acos.yaml` sets `gates.go: auto`, say so in the header line and
