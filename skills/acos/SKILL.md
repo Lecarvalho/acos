@@ -243,28 +243,41 @@ runs/<plan-id>/<index>-<slug>/manifest.yaml     one per part
 
 `plan.yaml` holds: intent, limits, one entry per part (index, dir,
 summary, `owns`, estimate, status `planned`), total estimate with
-`sessions: <n>` and one `startup_tokens` counted per session. Then present the plan, not the manifests:
+`sessions: <n>` and one `startup_tokens` counted per session.
+
+Then present the plan, not the manifests. A table, and nothing the user
+did not ask to see:
 
 ```
-ACOS plan: <plan-id>   Parts: <n>   Sessions: <n>
-Total: ~<orchestrator tokens> orchestrator, ~<worker tokens> workers, <agents> agents
-  1. <slug>   <stages>   ~<tokens>   <one-line summary>
-  2. <slug>   <stages>   ~<tokens>   <summary>   after 1
-  3. <slug>   plan, implement x3 (balanced), verify, evidence   ~<tokens>   <summary>   after 1, alongside 2
+intent: <one line, what the whole plan makes true>
+sessions: <n>
+
+| part | summary | files | subagents | tokens |
+|------|---------|-------|-----------|--------|
+| 1 | <a few words> | 4 | 0 | ~85k |
+| 2 | <a few words> | 6 | 3 | ~240k |
+| 3 | <a few words> | 3 | 1 | ~120k |
+
 Manifests: runs/<plan-id>/<index>-<slug>/manifest.yaml
-Next: /acos run runs/<plan-id> 1   (fresh session recommended | can run here now)
+Next: /acos run runs/<plan-id> 1
 ```
 
-`after` is printed only when it is not the part before; `alongside` names
-parts that may run in a second session at the same time. Fan-out parts
-show their slice count and tier.
+The columns come straight off each part's `estimate`: `files`, `agents`,
+and `orchestrator_tokens` plus `worker_tokens` as one figure, rounded to
+thousands. Summary is a few words, not a sentence; the manifest holds the
+detail. One part per row, in run order, and no other columns.
 
-Then stop. Do not print any manifest. The files are on disk; say so.
-Say in one line whether you recommend running part 1 in this session or
-a fresh one: this session if the plan was cheap to make and part 1 is
-small, a fresh one if sizing took wide exploration or the conversation
-is already long. The user decides. If they say GO here, run part 1
-(section 4 onward) in this session.
+Below the table, two lines at most. The first only when it is true:
+which parts may run at the same time, where `after` is not simply the
+part before. The second, whether you recommend part 1 in this session or
+a fresh one — this session if the plan was cheap to make and part 1 is
+small, a fresh one if sizing took wide exploration or the conversation is
+already long. Nothing else: no stage lists, no tier names, no totals row,
+no restating what the table already says.
+
+Then stop. Do not print any manifest. The files are on disk; the
+Manifests line says where. The user decides what runs; if they say GO
+here, run part 1 (section 4 onward) in this session.
 
 The user can attach the manifests to a work item and run them any time.
 Each must therefore be complete on its own: intent, scope, stages,
