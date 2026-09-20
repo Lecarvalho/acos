@@ -8,7 +8,7 @@ spends tokens on the work itself.
 
 The goal is control before spend, at the lowest possible overhead. The user
 sees which model, which effort where one can be set, how many steps and
-roughly how many tokens a task will take, agrees to it, and then the
+how much context each lane conservatively reserves, agrees to it, and then the
 orchestrator works without interruption. What actually happened is written down at the end, and later
 runs are calibrated from it.
 
@@ -44,7 +44,7 @@ delegates to subagents of the same provider, or calls external models.
 | **Adapter** | How a stage is executed: `inline`, `subagent`, `workflow`, or `external`. |
 | **Preset** | A named, ordered set of blocks plus loop and gate defaults. Optional. |
 | **Catalog** | The project's collection of providers, blocks, and presets. |
-| **Limits** | Project-level ceilings for one session: orchestrator tokens, worker tokens, agents, stages. Set in `.acos.yaml`. |
+| **Limits** | Project-level ceilings: orchestrator context, each worker context, optional aggregate worker volume, agents and stages. Set in `.acos.yaml`. |
 | **Manifest** | The composed, per-run document. Approved at GO. The *planned* manifest. |
 | **Plan** | An ordered set of manifests that together complete one intent too big for a single session. Each manifest is a part, sized to the limits, meant to run in its own session. |
 | **Part** | One manifest inside a plan. Carries its index, what it assumes done before it, and which parts it waits for. Parts that wait for none of each other may run in parallel sessions. |
@@ -65,7 +65,7 @@ delegates to subagents of the same provider, or calls external models.
 ### 2.1 Size
 
 Before composing, the orchestrator counts what the intent touches (files,
-lines changed, deliverables), derives stages, agents and tokens from
+lines changed, deliverables), derives stages, agents and context reservations from
 those counts, and compares all of it with the project limits (section 6).
 Counts come first because they can be checked; a token guess made first
 drifts to whatever the limit allows.
@@ -74,11 +74,12 @@ drifts to whatever the limit allows.
   plan: the orchestrator says the task fits one run and composes a single
   manifest instead.
 - Does not fit: propose the cut first, in a few short lines (parts, what
-  each does, rough cost each). Nothing is written until the user agrees
+  each does, and the per-context reservations). Nothing is written until the user agrees
   or adjusts it. Then each part becomes a manifest that fits the limits
   on its own, written together as a plan (section 3.2, 8). The user sees
-  the whole: how many parts, what each does, what each costs, and the
-  total. That is the cost of the task before any of it runs.
+  the whole: how many parts, what each does, what each context reserves,
+  and the explicitly labelled aggregate reserved volume. None of these
+  values is observed usage before execution.
 
 **Nothing starts at zero.** A session holds its harness before it reads
 a line of the repo: system prompt, tool schemas, MCP servers, project
@@ -140,15 +141,38 @@ after the plan is shown. Nothing forces that: a small part may run in the same s
 a single manifest that fits may run right away. The orchestrator says
 which it recommends and why, in one line.
 
-Token figures come from calibration notes when present, otherwise from
-the skill's built-in floors (a subagent costs about 150k before it writes
-a line; a review about 200k and is expected to fail once). Worker floors
-are measured end to end and already contain the worker's startup load;
-the orchestrator's is added once per part, on top. Within a plan,
-the actual/estimate ratio of parts already run scales the parts still to
-run, and a part that no longer fits is re-cut before its GO. Parts whose
+Token reservations come from calibration notes when present, otherwise
+from the skill's conservative fallback floors. Every fallback estimate
+states `calibration: fallback` and `confidence: low`; actual usage remains
+unknown until execution reports it. Worker reservations are measured end
+to end and already contain the worker's startup load. The orchestrator
+records startup, useful work and delegated-stage coordination separately.
+Fit is checked per context lane; their sum is aggregate reserved volume,
+not a value to compare with either lane's limit. Within a plan,
+the measured-actual/reservation ratio of matching lanes and work classes
+in parts already run scales the parts still to run, and a part that no
+longer fits is re-cut before its GO. Parts whose
 estimates all sit just under a limit are a sign of fitting the guess to
 the limit; the orchestrator recounts and cuts further.
+
+Fallback reservations use the stage's work class:
+
+| Work class | Fallback reservation |
+|------------|----------------------|
+| semantic, inline | 40k + 12k per touched file, plus orchestrator startup |
+| semantic, worker | 150k + 15k per touched file, worker startup included |
+| mechanical, inline | 8k + 2k per touched file, plus orchestrator startup |
+| mechanical, worker | worker startup + 10k + 3k per touched file |
+| command | 0 model tokens; shell time is not model context |
+| evidence | 60k worker tokens |
+| review | 200k worker tokens |
+
+Mechanical means delete, rename-only, import cleanup, a generated
+replacement, or a similarly bounded edit with no semantic redesign.
+Deleted line count does not raise its reservation. A part with any
+delegated work also reserves 10k of orchestrator coordination for briefs,
+worker reports, checks and handoff; it is recorded separately rather than
+hidden in implementation. Project calibration may replace these values.
 
 The orchestrator may also recommend a fresh session for a single
 manifest when the session that composed it already carries a lot of
@@ -167,8 +191,9 @@ The orchestrator:
   that changes the manifest, asks **one** clarifying question, then proceeds.
 - Composes the fewest stages that reach the intent. `implement` alone is a
   complete manifest. Presets are a convenience, not a requirement.
-- Estimates tokens per stage and for the orchestrator. Estimates are
-  rough and advisory, but they are what the user approves.
+- Reserves context per stage, for the orchestrator and independently for
+  each worker. Reservations are conservative and advisory; they are not
+  labelled or reported as observed usage.
 
 ### 2.3 Present
 
@@ -230,7 +255,7 @@ After a stage with a `check`, the orchestrator evaluates the check:
 |-------|-----------|
 | `retry` | Run the same stage again, up to `max_iterations`. |
 | `escalate` | Run the same stage again with the next model in `escalation`. When the list is exhausted, behave as `retry`. From an inline stage the retry is delegated to that model: a session cannot change its own model or effort. |
-| `ask` | Pause and ask the user. |
+| `ask` | Pause and ask the user. This is an explicit opt-in, never a catalog or shipped-preset default. |
 | `stop` | End the run, report failure. |
 
 When `max_iterations` is exhausted the run ends and reports failure.
@@ -258,10 +283,11 @@ The orchestrator pauses for the user in exactly two cases:
 2. `gates.per_stage` or a stage `gate` says so.
 
 Everything else, including retries, escalation, dropped stages, swapped
-models, changed checks and going past the estimate, is drift and goes to
+models, changed checks and going past the reservation, is drift and goes to
 the log only. A running session cannot measure its own token use
 reliably, so limits are not checked mid-run. Whether a run outgrew its
-limits is a question for `calibrate`, comparing `estimate` with `actual`.
+limits is a question for `calibrate`, comparing reserved and measured
+values from the same context lane.
 
 ### 2.8 Report and run log
 
@@ -304,7 +330,10 @@ actual:
   files: 8                  # from git, new files included
   lines: 478
   agents: 0
-  worker_tokens: 0          # only what adapters reported
+  observed:
+    orchestrator_tokens: 87300 # only when a usage observer reported it
+    workers: []
+    aggregate_tokens: 87300
 ```
 
 A stage record carries `effort` only when the stage was delegated. An
@@ -340,8 +369,16 @@ claim is a failed check, handled like a failed review: fixed inline,
 recaptured, never deferred. The stage runs while the orchestrator writes
 the handoff. A part with no visible surface writes none.
 
+A visible part may defer that evidence to one named later part only when
+its manifest records `part.evidence.deferred_to` plus every claim and
+capture target, its deterministic verification passes, and the later
+part repeats all deferred claims under `part.evidence`, names the covered
+parts, and closes them with one final evidence stage. Evidence failure in
+that final part still fails the plan. This is a batching rule, not a way
+to drop evidence.
+
 The final report includes: manifest id, outcome, each stage's outcome and
-iterations, drift in one line each, actual versus estimated counts where
+iterations, drift in one line each, measured actual versus reserved counts where
 known, what remains in the plan if any, and a summary of the changes made.
 It points at files such as the handoff rather than repeating them, and
 names the next part to run when there is one.
@@ -376,7 +413,7 @@ stages: [Stage]        # required, at least one
 loop: Loop             # optional, manifest-level defaults
 gates: Gates           # optional
 limits: Limits         # optional; copied from .acos.yaml, may be overridden per run
-estimate: Estimate     # optional, rough
+estimate: Estimate     # optional, conservative compose-time reservation
 outputs: Outputs       # optional
 ```
 
@@ -389,6 +426,10 @@ part:
   of: 3
   after: [1]                        # parts this one waits for; default: the part before it
   assumes: "Part 1 done: refresh-on-401 merged, tests in tests/auth/refresh.test.ts."
+  evidence:                         # optional evidence deferral or final coverage
+    deferred_to: 3
+    claims:
+      - { claim: "Logout notice appears", url: "/account", capture: "[role=status]" }
 ```
 
 `assumes` states what the part expects to find in the tree when it
@@ -396,6 +437,11 @@ starts, so a fresh session can check it before GO. `after` lists the parts
 whose work this one builds on; `[]` means it may start at any time. Two
 parts neither of which is downstream of the other may run in separate
 sessions at once.
+
+`evidence.deferred_to` is valid only when this part passes deterministic
+verification and the named later part repeats every claim and target. The
+final evidence part uses `covers_parts: [1, 2]` with the full carried
+claim list. Exactly one of `deferred_to` and `covers_parts` is present.
 
 ### 3.3 Scope (optional)
 
@@ -485,9 +531,9 @@ limits:
                                 # one slice), tests included; a fan-out session
                                 # legitimately totals more
   lines: 400                    # added plus removed, same per-context meaning
-  orchestrator_tokens: 100000   # context the orchestrating session may spend
-  worker_tokens: 300000         # sum over subagents, workflows and external calls,
-                                # as the harness reports them (re-read context included)
+  orchestrator_tokens: 120000   # context the orchestrating session may spend
+  worker_context_tokens: 300000 # each worker context may spend
+  worker_tokens_total: 900000   # optional aggregate ceiling across workers
   agents: 3                     # subagent, workflow agent or external calls per run
   stages: 5
   cost: 5.00                    # optional, with currency
@@ -496,28 +542,37 @@ limits:
 
 All fields optional. Missing fields are unlimited.
 
-### 3.9 Estimate and actual (optional, rough)
+### 3.9 Estimate and actual (optional)
 
-`estimate` is produced at compose time and is what the user approves.
-`actual` has the same shape and lives in the run log and the plan file,
-not in the manifest. Any field may be absent. Estimated token counts are
-rough; actual token counts are measured or absent (2.8).
+`estimate` is a conservative context reservation produced at compose
+time. `actual` is a separate measured record in the run log and plan
+file, not the manifest. Reservation fields are never copied into actual.
+Any actual token field may be absent when the adapter or usage observer
+cannot measure it (2.8).
 
 ```yaml
 estimate:
   files: 4
   lines: 180
-  startup_tokens: 40000         # part of orchestrator_tokens: what the session
-                                # held before it read anything (section 6)
-  orchestrator_tokens: 90000
-  worker_tokens: 0
+  calibration: fallback
+  confidence: low
+  orchestrator:
+    startup_tokens: 40000
+    work_tokens: 64000
+    coordination_tokens: 0
+    reserved_tokens: 104000
+    limit_tokens: 120000
+  workers: []
+  aggregate_reserved_tokens: 104000
+  observed_tokens: null
   agents: 0
   per_stage:
     - name: implement
-      tokens: 90000
+      work_class: semantic
+      reserved_tokens: 64000
   cost: 0.80                    # optional
   currency: USD
-  basis: "startup 40k measured 2026-09-18; calibration.md: inline implement in this repo runs 40k + 12k per file"
+  basis: "Conservative context reservation from ACOS fallback floors; actual usage is unknown until execution. Startup 40k measured 2026-09-18."
 ```
 
 ### 3.10 Drift
@@ -669,8 +724,8 @@ startup:
 limits:
   files: 8
   lines: 400
-  orchestrator_tokens: 100000
-  worker_tokens: 300000
+  orchestrator_tokens: 120000
+  worker_context_tokens: 300000
   agents: 3
   stages: 5
 ```
@@ -697,7 +752,10 @@ large intent into a plan of parts, and what caps delegation. When absent,
 the orchestrator uses its own judgement and says so in the estimate basis.
 `limits.files` and `limits.lines` bound one context — an inline part or
 one slice of a fan-out — so a session running several slices may exceed
-them in total on purpose.
+them in total on purpose. `worker_context_tokens` is likewise per worker.
+Only `worker_tokens_total`, when present, caps the aggregate worker volume.
+The shipped 120k orchestrator ceiling leaves enough room after the 40k
+startup default for the documented ordinary two-file inline shape.
 
 ---
 
@@ -767,38 +825,67 @@ runs/2026-09-16-auth-hardening/
 acos: "0.1"
 id: 2026-09-16-auth-hardening
 intent: "Full auth hardening: silent refresh on 401, logout endpoint, session persistence."
-limits: { orchestrator_tokens: 100000, agents: 3, stages: 5 }
+limits: { orchestrator_tokens: 120000, worker_context_tokens: 300000, agents: 3, stages: 5 }
 parts:
   - index: 1
     dir: 1-refresh-on-401
     summary: "Silent refresh on 401 in AuthClient, with tests."
     owns: [src/auth/client.ts, src/auth/refresh.ts, tests/auth/refresh.test.ts]
-    estimate: { files: 3, startup_tokens: 40000, orchestrator_tokens: 75000, worker_tokens: 0, agents: 0 }
-    actual:   { files: 4, orchestrator_tokens: 90000, worker_tokens: 0, agents: 0 }
+    estimate:
+      files: 3
+      calibration: fallback
+      confidence: low
+      orchestrator: { startup_tokens: 40000, work_tokens: 76000, coordination_tokens: 0, reserved_tokens: 116000, limit_tokens: 120000 }
+      workers: []
+      aggregate_reserved_tokens: 116000
+      observed_tokens: null
+      agents: 0
+    actual: { files: 4, observed: { orchestrator_tokens: 110000, workers: [], aggregate_tokens: 110000 } }
     status: done          # planned | done | failed
   - index: 2
     dir: 2-logout
     summary: "Logout endpoint and UI action."
     owns: [src/auth/logout.ts, src/api/routes/logout.ts, src/ui/AccountMenu.tsx, tests/auth/logout.test.ts]
     after: [1]
-    estimate: { files: 5, startup_tokens: 40000, orchestrator_tokens: 95000, worker_tokens: 0, agents: 0 }
+    estimate:
+      files: 5
+      calibration: fallback
+      confidence: low
+      orchestrator: { startup_tokens: 40000, work_tokens: 0, coordination_tokens: 10000, reserved_tokens: 50000, limit_tokens: 120000 }
+      workers:
+        - { stage: implement, work_class: semantic, startup_included: true, reserved_tokens: 225000, limit_tokens: 300000 }
+        - { stage: evidence, work_class: evidence, startup_included: true, reserved_tokens: 60000, limit_tokens: 300000 }
+      aggregate_reserved_tokens: 335000
+      observed_tokens: null
+      agents: 2
     status: planned
   - index: 3
     dir: 3-session-persistence
     summary: "Persist session across reloads. Two slices: storage adapter, client wiring."
     owns: [src/auth/storage/, src/auth/session.ts, src/ui/SessionBoundary.tsx, tests/auth/session.test.ts]
     after: [1]                      # not on 2: may run alongside it
-    estimate: { files: 7, startup_tokens: 40000, orchestrator_tokens: 60000, worker_tokens: 380000, agents: 2 }
+    estimate:
+      files: 7
+      calibration: fallback
+      confidence: low
+      orchestrator: { startup_tokens: 40000, work_tokens: 15000, coordination_tokens: 10000, reserved_tokens: 65000, limit_tokens: 120000 }
+      workers:
+        - { stage: implement-storage, work_class: semantic, startup_included: true, reserved_tokens: 195000, limit_tokens: 300000 }
+        - { stage: implement-client, work_class: semantic, startup_included: true, reserved_tokens: 210000, limit_tokens: 300000 }
+      aggregate_reserved_tokens: 470000
+      observed_tokens: null
+      agents: 2
     status: planned
-estimate: { orchestrator_tokens: 250000, worker_tokens: 380000, agents: 2, sessions: 3 }
+estimate: { aggregate_reserved_tokens: 921000, agents: 4, sessions: 3 }
 ```
 
 `owns` is the part's files, and the plan's cut is checkable from it: a
 path appears under one part, or the plan says in one line why a second
 part must write it too. Paths under three or more parts mean the cut
 ran along layers instead of capabilities (section 2.1) and the plan is
-recut rather than approved. The total `orchestrator_tokens` counts one
-`startup_tokens` per session, which is the honest price of a part more.
+recut rather than approved. The plan's aggregate reservation counts one
+orchestrator startup per session. It describes total reserved context
+volume and is never compared with either per-context token ceiling.
 
 Every part's manifest is complete on its own: it can be attached to a
 work item and run months later in a session that knows nothing else. The

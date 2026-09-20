@@ -360,9 +360,121 @@
         }
       }
     },
+    "WorkClass": {
+      "type": "string",
+      "enum": [
+        "semantic",
+        "mechanical",
+        "command",
+        "evidence",
+        "review"
+      ],
+      "description": "Class used to choose a calibrated reservation. Command-only work reserves zero model tokens; mechanical work does not scale with deleted line count."
+    },
+    "OrchestratorReservation": {
+      "type": "object",
+      "required": [
+        "startup_tokens",
+        "work_tokens",
+        "coordination_tokens",
+        "reserved_tokens",
+        "limit_tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "startup_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "work_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coordination_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Briefing, reading worker reports, evaluating checks and writing handoffs."
+        },
+        "reserved_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "startup_tokens + work_tokens + coordination_tokens. Compared only with this lane's limit_tokens."
+        },
+        "limit_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "WorkerReservation": {
+      "type": "object",
+      "required": [
+        "stage",
+        "work_class",
+        "startup_included",
+        "reserved_tokens",
+        "limit_tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "type": "string"
+        },
+        "work_class": {
+          "$ref": "#/$defs/WorkClass"
+        },
+        "startup_included": {
+          "type": "boolean",
+          "const": true,
+          "description": "Worker reservations are end-to-end and include the worker startup load."
+        },
+        "reserved_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The per-worker context ceiling copied from limits.worker_context_tokens."
+        }
+      }
+    },
+    "StageReservation": {
+      "type": "object",
+      "required": [
+        "name",
+        "work_class",
+        "reserved_tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "work_class": {
+          "$ref": "#/$defs/WorkClass"
+        },
+        "reserved_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
     "Estimate": {
       "type": "object",
-      "description": "Rough compose-time estimate. The run log and plan file record `actual` in the same shape. Every field optional.",
+      "description": "Conservative compose-time context reservation, not usage already spent or a point forecast. Fit is evaluated per context lane. Observed usage remains null until execution reports a measurement.",
+      "required": [
+        "calibration",
+        "confidence",
+        "orchestrator",
+        "workers",
+        "aggregate_reserved_tokens",
+        "observed_tokens"
+      ],
       "additionalProperties": false,
       "properties": {
         "files": {
@@ -375,19 +487,39 @@
           "minimum": 0,
           "description": "Lines added plus removed."
         },
-        "startup_tokens": {
+        "calibration": {
+          "type": "string",
+          "enum": [
+            "fallback",
+            "project"
+          ],
+          "description": "fallback when no applicable acos/calibration.md measurement exists; project when project calibration supplied the figures."
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "orchestrator": {
+          "$ref": "#/$defs/OrchestratorReservation"
+        },
+        "workers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkerReservation"
+          }
+        },
+        "aggregate_reserved_tokens": {
           "type": "integer",
           "minimum": 0,
-          "description": "Part of orchestrator_tokens: the session's startup load (system prompt, tools, MCP servers, memory, skills) before it reads anything. From .acos.yaml startup.orchestrator."
+          "description": "Conservative sum across the orchestrator and all workers. Useful for volume or cost analysis, never for comparison with a per-context limit."
         },
-        "orchestrator_tokens": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Total context the orchestrating session is expected to spend, startup_tokens included."
-        },
-        "worker_tokens": {
-          "type": "integer",
-          "minimum": 0
+        "observed_tokens": {
+          "type": "null",
+          "description": "Always null in a compose-time estimate. Measured actuals belong in the run log or plan actual record."
         },
         "agents": {
           "type": "integer",
@@ -403,24 +535,7 @@
         "per_stage": {
           "type": "array",
           "items": {
-            "type": "object",
-            "required": [
-              "name"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "tokens": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "cost": {
-                "type": "number",
-                "minimum": 0
-              }
-            }
+            "$ref": "#/$defs/StageReservation"
           }
         },
         "basis": {
@@ -463,10 +578,15 @@
           "minimum": 0,
           "description": "Context the orchestrating session may spend, its startup load included. What is left for the work is this minus .acos.yaml startup.orchestrator."
         },
-        "worker_tokens": {
+        "worker_context_tokens": {
           "type": "integer",
           "minimum": 0,
-          "description": "Sum over subagents, workflow agents and external calls, as the harness reports them (re-read context included)."
+          "description": "Per-worker context ceiling. Every worker reservation is compared with this value independently."
+        },
+        "worker_tokens_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional aggregate ceiling across workers in one run. Omit when only per-context fit matters."
         },
         "agents": {
           "type": "integer",
@@ -521,8 +641,81 @@
         "assumes": {
           "type": "string",
           "description": "What this part expects earlier parts to have left in the tree. Checked before GO."
+        },
+        "evidence": {
+          "$ref": "#/$defs/PartEvidence"
         }
       }
+    },
+    "EvidenceClaim": {
+      "type": "object",
+      "required": [
+        "claim",
+        "url",
+        "capture"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claim": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capture": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Selector or --full."
+        },
+        "eval": {
+          "type": "string"
+        }
+      }
+    },
+    "PartEvidence": {
+      "type": "object",
+      "required": [
+        "claims"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "deferred_to": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Later part that must carry and capture these claims. Valid only when this part also passes deterministic verification."
+        },
+        "covers_parts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "Earlier parts whose deferred claims this part captures."
+        },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/EvidenceClaim"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "deferred_to"
+          ]
+        },
+        {
+          "required": [
+            "covers_parts"
+          ]
+        }
+      ]
     }
   }
 }

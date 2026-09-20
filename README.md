@@ -8,12 +8,14 @@ sizes the task against the project's session limits, composes a manifest
 from the block catalog, shows it, waits for GO, then executes it without
 further interruptions. A task too big for one session becomes a *plan*:
 several manifests, each sized for its own session, written to disk up
-front so the user sees the whole cost and can run each part whenever
+front so the user sees every context reservation and can run each part whenever
 they like, in a fresh session, or attach them to a work item. The
 manifest says which stages run, on which provider and model, at what
-effort where a model can be told one, with how many agents, and roughly
-how many tokens — counted from what the session already holds at
-startup, not from zero. When the plan turns out wrong mid-run the
+effort where a model can be told one, with how many agents, and how much
+context each participant conservatively reserves — counted from what the
+session already holds at startup, not from zero. Aggregate reservation is
+labelled separately and is not presented as observed usage. When the plan
+turns out wrong mid-run the
 orchestrator adjusts, logs the drift and keeps going; at the end it closes the run log with what actually ran.
 `/acos calibrate` reads those over time so the next manifest for this
 repo is closer to right.
@@ -55,10 +57,13 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
 
 - **The GO gate is mandatory.** Only a project's own `.acos.yaml` can set
   it to `auto`. Presets cannot.
-- **Limits and estimates are advisory.** Limits (orchestrator tokens,
-  agents, stages) shape the manifest and split big tasks into a plan at
+- **Limits and estimates are advisory.** Per-context limits (orchestrator
+  tokens, worker context tokens, files and lines), plus agents and stages,
+  shape the manifest and split big tasks into a plan at
   compose time. `files` and `lines` bound one context — an inline part or
-  one slice — not one session.
+  one slice — not one session. An optional `worker_tokens_total` is the only
+  aggregate worker ceiling. Compose-time reservations are conservative;
+  measured actuals stay unknown until an adapter or usage observer reports them.
   Nothing checks them mid-run; `/acos calibrate` does, afterwards.
 - **One session per manifest.** A plan's parts are complete manifests
   meant for fresh sessions. The planning session often ends at the plan.
@@ -124,4 +129,11 @@ Version 0.1, being validated on real projects. Expect field changes.
 
 ```
 npx ajv-cli@5 validate --spec=draft2020 -s schema/acos.schema.json -d my-manifest.json
+```
+
+The lightweight estimation contract examples cover lane fit, work classes,
+evidence deferral and observed usage:
+
+```
+node --test tests/estimation-contract.test.mjs
 ```

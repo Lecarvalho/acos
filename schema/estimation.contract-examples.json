@@ -1,0 +1,150 @@
+{
+  "limits": {
+    "orchestrator_tokens": 120000,
+    "worker_context_tokens": 300000,
+    "agents": 3
+  },
+  "cases": {
+    "mechanical_deletion": {
+      "estimate": {
+        "files": 1,
+        "calibration": "fallback",
+        "confidence": "low",
+        "orchestrator": {
+          "startup_tokens": 40000,
+          "work_tokens": 10000,
+          "coordination_tokens": 0,
+          "reserved_tokens": 50000,
+          "limit_tokens": 120000
+        },
+        "workers": [],
+        "aggregate_reserved_tokens": 50000,
+        "observed_tokens": null,
+        "agents": 0,
+        "per_stage": [
+          { "name": "delete-plan", "work_class": "mechanical", "reserved_tokens": 10000 },
+          { "name": "verify", "work_class": "command", "reserved_tokens": 0 }
+        ],
+        "basis": "Conservative context reservation from ACOS fallback floors; actual usage is unknown until execution."
+      }
+    },
+    "two_file_inline": {
+      "estimate": {
+        "files": 2,
+        "calibration": "fallback",
+        "confidence": "low",
+        "orchestrator": {
+          "startup_tokens": 40000,
+          "work_tokens": 64000,
+          "coordination_tokens": 0,
+          "reserved_tokens": 104000,
+          "limit_tokens": 120000
+        },
+        "workers": [],
+        "aggregate_reserved_tokens": 104000,
+        "observed_tokens": null,
+        "agents": 0
+      }
+    },
+    "parallel_implementers_and_evidence": {
+      "estimate": {
+        "files": 4,
+        "calibration": "fallback",
+        "confidence": "low",
+        "orchestrator": {
+          "startup_tokens": 40000,
+          "work_tokens": 15000,
+          "coordination_tokens": 10000,
+          "reserved_tokens": 65000,
+          "limit_tokens": 120000
+        },
+        "workers": [
+          { "stage": "implement-a", "work_class": "semantic", "startup_included": true, "reserved_tokens": 180000, "limit_tokens": 300000 },
+          { "stage": "implement-b", "work_class": "semantic", "startup_included": true, "reserved_tokens": 180000, "limit_tokens": 300000 },
+          { "stage": "evidence", "work_class": "evidence", "startup_included": true, "reserved_tokens": 60000, "limit_tokens": 300000 }
+        ],
+        "aggregate_reserved_tokens": 485000,
+        "observed_tokens": null,
+        "agents": 3
+      }
+    },
+    "eight_file_visible_slice": {
+      "estimate": {
+        "files": 8,
+        "calibration": "fallback",
+        "confidence": "low",
+        "orchestrator": {
+          "startup_tokens": 40000,
+          "work_tokens": 0,
+          "coordination_tokens": 10000,
+          "reserved_tokens": 50000,
+          "limit_tokens": 120000
+        },
+        "workers": [
+          { "stage": "implement", "work_class": "semantic", "startup_included": true, "reserved_tokens": 270000, "limit_tokens": 300000 },
+          { "stage": "evidence", "work_class": "evidence", "startup_included": true, "reserved_tokens": 60000, "limit_tokens": 300000 }
+        ],
+        "aggregate_reserved_tokens": 380000,
+        "observed_tokens": null,
+        "agents": 2
+      }
+    },
+    "deferred_evidence": {
+      "parts": [
+        {
+          "index": 1,
+          "deterministic_verify": true,
+          "evidence": {
+            "deferred_to": 3,
+            "claims": [
+              { "claim": "Shared heading links", "url": "/overview", "capture": "h2 a" }
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "deterministic_verify": true,
+          "evidence": {
+            "deferred_to": 3,
+            "claims": [
+              { "claim": "Sparse card keeps spacing", "url": "/overview", "capture": "[data-card='sparse']" }
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "evidence": {
+            "covers_parts": [1, 2],
+            "claims": [
+              { "claim": "Shared heading links", "url": "/overview", "capture": "h2 a" },
+              { "claim": "Sparse card keeps spacing", "url": "/overview", "capture": "[data-card='sparse']" }
+            ]
+          }
+        }
+      ]
+    },
+    "before_and_after_execution": {
+      "estimate": {
+        "calibration": "fallback",
+        "confidence": "low",
+        "orchestrator": {
+          "startup_tokens": 40000,
+          "work_tokens": 52000,
+          "coordination_tokens": 0,
+          "reserved_tokens": 92000,
+          "limit_tokens": 120000
+        },
+        "workers": [],
+        "aggregate_reserved_tokens": 92000,
+        "observed_tokens": null
+      },
+      "actual": {
+        "observed": {
+          "orchestrator_tokens": 71320,
+          "workers": [],
+          "aggregate_tokens": 71320
+        }
+      }
+    }
+  }
+}

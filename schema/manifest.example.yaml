@@ -50,7 +50,7 @@ stages:
     check:
       kind: review
       criteria: "No public API change. 401 path covered by a test."
-    on_fail: ask
+    on_fail: retry
 
 loop:
   max_iterations: 3
@@ -61,23 +61,36 @@ gates:
   per_stage: false
 
 limits:
-  orchestrator_tokens: 100000
-  worker_tokens: 300000
+  orchestrator_tokens: 120000
+  worker_context_tokens: 300000
   agents: 3
   stages: 5
 
 estimate:
   files: 3
   lines: 150
-  startup_tokens: 40000       # already gone when the first stage starts
-  orchestrator_tokens: 90000  # startup included: 40k + 50k of work
-  worker_tokens: 200000
+  calibration: project
+  confidence: medium
+  orchestrator:
+    startup_tokens: 40000
+    work_tokens: 50000
+    coordination_tokens: 10000
+    reserved_tokens: 100000
+    limit_tokens: 120000
+  workers:
+    - stage: review
+      work_class: review
+      startup_included: true
+      reserved_tokens: 200000
+      limit_tokens: 300000
+  aggregate_reserved_tokens: 300000 # volume across two contexts, not a fit limit
+  observed_tokens: null              # remains unknown until execution measures it
   agents: 1
   per_stage:
-    - { name: plan,      tokens: 15000 }
-    - { name: implement, tokens: 35000 }
-    - { name: review,    tokens: 200000 }
-  basis: "startup 40k from .acos.yaml, measured 2026-09-18; calibration.md Cost section; review at the 200k subagent floor"
+    - { name: plan,      work_class: semantic, reserved_tokens: 15000 }
+    - { name: implement, work_class: semantic, reserved_tokens: 35000 }
+    - { name: review,    work_class: review, reserved_tokens: 200000 }
+  basis: "startup 40k from .acos.yaml, measured 2026-09-18; project calibration for inline work; review at its 200k reservation"
 
 outputs:
   run_dir: runs/2026-09-16-auth-token-refresh

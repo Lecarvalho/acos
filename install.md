@@ -120,3 +120,8 @@ enough for one run gets a single manifest instead of a plan.
 
 Re-copy the skill folder. Catalog and presets are yours once copied; diff
 against this repo when you want upstream changes.
+
+For installations created before per-worker lane limits were explicit,
+rename `limits.worker_tokens` to `limits.worker_context_tokens`. Use
+`worker_tokens_total` only when the project intentionally wants an
+additional aggregate ceiling across all workers in one run.

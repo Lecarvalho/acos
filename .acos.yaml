@@ -9,11 +9,9 @@ models:
   balanced: claude-sonnet-5      # explorers, fan-out implementers, evidence
   strong: claude-opus-5          # planning, review, escalation
 
-# This repository has no test runner: it is Markdown, YAML, one JSON schema
-# and one Node script. Verify is therefore the two checks it
-# can actually fail — the script parses, and the schema compiles under the
-# draft the README tells contributors to validate manifests against.
-verify: "node --check skills/acos/scripts/shot.mjs && npx --yes ajv-cli@5 compile --spec=draft2020 -s schema/acos.schema.json"
+# This repository is Markdown, YAML, a JSON schema and small Node scripts.
+# Verify checks the capture script, estimation contract examples and schema.
+verify: "node --check skills/acos/scripts/shot.mjs && node --test tests/estimation-contract.test.mjs && npx --yes ajv-cli@5 compile --spec=draft2020 -s schema/acos.schema.json"
 
 # Captures a cropped screenshot for a part's try-it page; substituted into
 # {{ project.shot }}. Here the script sits in the source tree rather than in
@@ -27,7 +25,7 @@ gates:
 # measured with /context; estimated from what loads here (harness system
 # prompt and built-in tools ~20k, the configured MCP servers ~12k, the
 # skill list ~7k, no CLAUDE.md). Sizing subtracts orchestrator from
-# limits.orchestrator_tokens, leaving 60k for the work. Re-run
+# limits.orchestrator_tokens, leaving 80k for the work. Re-run
 # `/acos init` to replace this with a measurement.
 startup:
   orchestrator: 40000
@@ -37,7 +35,8 @@ startup:
 limits:
   files: 8                       # per context: an inline part, or one slice
   lines: 400
-  orchestrator_tokens: 100000
-  worker_tokens: 300000
+  orchestrator_tokens: 120000
+  worker_context_tokens: 300000 # per worker; omit worker_tokens_total when no
+                                # aggregate worker ceiling is wanted
   agents: 3
   stages: 5
