@@ -360,7 +360,9 @@ they can check, captured with `{{ project.shot }}` into
 `artifacts/shots/` and carrying a one or two line caption. It is the
 part's evidence rather than its summary: the caption says what the crop
 shows, and a crop that disagrees with its caption is a defect in the part.
-The `evidence` stage that produces it is delegated by default, so the
+When the manifest has `design`, `try-it.md` is keyed by contract line and
+each caption ends with the evidence worker's comparison. The `evidence`
+stage that produces it is delegated by default, so the
 pixels never enter the orchestrator's context: the implementer ends its
 report with one capture line per claim, a balanced-tier worker runs the
 captures, looks at each crop, captions it and writes the page, and its
@@ -414,6 +416,7 @@ loop: Loop             # optional, manifest-level defaults
 gates: Gates           # optional
 limits: Limits         # optional; copied from .acos.yaml, may be overridden per run
 estimate: Estimate     # optional, conservative compose-time reservation
+design: Design         # optional; present when the work follows a design
 outputs: Outputs       # optional
 ```
 
@@ -593,6 +596,29 @@ outputs:
   run_dir: runs/2026-09-16-auth-refresh   # default runs/<id>
   write_log: true
 ```
+
+### 3.12 Design (optional)
+
+```yaml
+design:
+  sources:                                   # every artboard, mockup or note the work follows
+    - https://claude.ai/artifact/<id>        # a canvas; read one file per artboard
+    - docs/design/next/Main.dc.html
+    - docs/design/next/Main.png              # an exported render, when there is one
+  contract: runs/<id>/artifacts/design-contract.md
+```
+
+A design is a contract. The `contract` stage copies the sources under
+`runs/<id>/design/` and transcribes them into numbered lines, one per
+element and state, each with its size, colour, type and copy taken from the
+source markup. Each line is a deliverable: the implementer marks every one
+`done <file:line>` or `deferred: <why>` and emits one capture line per
+contract line; the evidence worker compares each crop with the artboard's
+render, or with the line's values when no render exists, and answers
+`match`, `differs - <what>` or `not captured`; the reviewer treats a line
+built smaller or approximately as a blocker. A part with an open line does
+not close. A design shared after GO is drift that stops the run: the
+manifest is re-presented with it.
 
 ---
 

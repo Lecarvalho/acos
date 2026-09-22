@@ -57,6 +57,9 @@
     "estimate": {
       "$ref": "#/$defs/Estimate"
     },
+    "design": {
+      "$ref": "#/$defs/Design"
+    },
     "outputs": {
       "$ref": "#/$defs/Outputs"
     }
@@ -716,6 +719,28 @@
           ]
         }
       ]
+    },
+    "Design": {
+      "type": "object",
+      "description": "Present when the work follows a design. The contract stage transcribes the sources into numbered acceptance lines; a part does not close with a line left open.",
+      "required": [
+        "sources"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Every artboard, mockup, exported render or note the work follows: a repo path or a canvas URL. Copied under runs/<id>/design/ by the contract stage."
+        },
+        "contract": {
+          "type": "string",
+          "description": "Where the contract stage writes the numbered lines. Default runs/<id>/artifacts/design-contract.md."
+        }
+      }
     }
   }
 }
