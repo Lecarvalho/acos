@@ -371,7 +371,11 @@ within limits. A manifest with `design` and no `contract` stage, or
 whose visible stages do not read `design-contract`, is a compose error. An inline stage
 carries no `provider`, `model` or `effort`: they are invalid there, and
 the session could not honour them anyway. If a stage needs a model or an
-effort other than the session's, delegate it. Stages that will run
+effort other than the session's, delegate it. A delegated stage with no
+effort runs at `inherit`; any other level must be in its model's
+`effort` list in `acos/catalog/providers.yaml`, and a level the model
+does not list is a compose error. Escalation entries follow the same
+rule. Stages that will run
 at the same time (consecutive delegated stages with no input/output
 dependency) each carry `owns`, and no path appears in two of them; an
 overlap is a compose error, fix the cut before presenting.
@@ -430,7 +434,7 @@ No plan id in the header: it is the first segment of the Manifest path
 directly below.
 
 `runs on` is `inline` for a stage this session does, or the model and
-effort for a delegated one — an inline stage never prints an effort,
+effort for a delegated one (the model alone when it inherits) — an inline stage never prints an effort,
 because it runs at whatever this session runs at and nothing in the
 manifest can change that mid-run. `check` is the check itself (`full
 verify`, `dotnet test`), not its kind; a stage with `kind: none` prints
@@ -503,7 +507,8 @@ On GO:
    f. Append a stage record to `log.yaml`: name, iteration, adapter,
       provider, model, started, ended, tokens only if the adapter
       reports them (never an estimate), check outcome, and the shortest
-      decisive check output. `effort` only for a delegated stage; for an
+      decisive check output. `effort` only for a delegated stage (`inherit`
+      when it set none); for an
       inline one record the session's model when the harness names it
       and leave effort out.
    g. On fail, apply `on_fail` (stage value, else `loop.on_fail`):

@@ -43,7 +43,8 @@ Spawn one agent with the Agent tool.
   `claude-haiku-4-5` to `haiku`). If the harness cannot select that model,
   log the model actually used.
 - `effort`: state it in the prompt as a one-line instruction, e.g.
-  "Effort: low. Minimal exploration, terse report."
+  "Effort: low. Minimal exploration, terse report." On `inherit` write
+  no effort line: the agent runs at the harness default.
 - The prompt must be self-contained: the agent has no conversation
   context. Include intent, scope notes, inputs, and the block prompt.
 - Ask the agent to end with a clear final report; that report is the stage
@@ -96,7 +97,8 @@ folder. Load the `workflow-authoring` skill before writing the script.
 Run a shell command from the provider catalog.
 
 - Take `providers.<provider>.invoke.external`. Substitute `{{model}}` and
-  `{{effort}}` (via the provider's `effort_map`).
+  `{{effort}}` (via the provider's `effort_map`). On `inherit`,
+  `{{effort}}` becomes an empty string and the CLI runs at its default.
 - Pass the built prompt on stdin. Capture stdout as the stage output.
 - Non-zero exit is a stage error, distinct from a check failure. Log the
   exit code and the last lines of stderr, then apply `on_fail`.

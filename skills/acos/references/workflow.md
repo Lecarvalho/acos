@@ -34,7 +34,7 @@ above the manifest. Do not run it until GO.
 | segment | one script, `meta.phases` = one entry per stage in it |
 | stage | `agent(prompt, {label: stage.name, phase: stage.name, ...})` |
 | `provider` / `model` | `model` option, harness alias (`opus`, `sonnet`, `haiku`). Omit when the model equals the session model. Non-native providers cannot run in a workflow: compose error before GO. |
-| `effort` | `effort` option: low, medium, high, max, unchanged |
+| `effort` | `effort` option: low, medium, high, max. Omit it on `inherit`. |
 | `inputs` | previous agents' return values, interpolated into the prompt |
 | `outputs` | the agent's return value, kept in a `artifacts` object and returned at the end |
 | `check.kind: command` | one extra low-effort agent per iteration: runs the command, returns `{pass, output}` via schema. The script has no shell access itself. |
@@ -121,7 +121,7 @@ ${SCOPE ? 'Scope notes: ' + SCOPE : ''}
 // ---- explore --------------------------------------------------------
 artifacts.context = await agent(header(`You are the explorer. Do not modify any file.
 Find what the intent touches: relevant files, conventions, verify command, risks.
-Under 40 lines. No code dumps.`), { label: 'explore', phase: 'explore', model: 'haiku', effort: 'low' })
+Under 40 lines. No code dumps.`), { label: 'explore', phase: 'explore', model: 'haiku' })
 
 // ---- plan -----------------------------------------------------------
 artifacts.plan = await agent(header(`You are the planner. Do not modify any file.

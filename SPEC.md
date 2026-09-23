@@ -336,7 +336,8 @@ actual:
     aggregate_tokens: 87300
 ```
 
-A stage record carries `effort` only when the stage was delegated. An
+A stage record carries `effort` only when the stage was delegated, as
+`inherit` when the stage set none. An
 inline stage ran at the session's model and effort, which nothing in the
 manifest could set; the log names the model when the harness exposes it.
 
@@ -468,7 +469,8 @@ scope:
   provider: string          # catalog provider key, e.g. anthropic, openai, ollama
                             # delegated stages only
   model: string             # provider model id; delegated stages only
-  effort: low | medium | high | max   # delegated stages only; adapters map it
+  effort: low | medium | high | max | inherit   # delegated stages only; adapters
+                            # map it. Absent means inherit.
   inputs: [string]          # names of prior stage outputs this stage reads
   outputs: [string]         # names this stage produces
   owns: [string]            # files or directories only this stage writes; required
@@ -482,6 +484,12 @@ scope:
 ```
 
 `ModelRef` is `{provider, model, effort?}`.
+
+`effort` defaults to `inherit`. An inherited effort sets nothing: the
+worker runs at whatever its runner defaults to (a subagent at the
+harness's, an external CLI at its own). Any other level must be one the
+model lists under `effort` in the provider catalog (section 5.1); a
+level the model does not list is a compose error.
 
 `provider`, `model` and `effort` belong to a delegated stage. An inline
 stage carries none of them: it runs in the session that is executing the
@@ -689,11 +697,20 @@ anthropic:
   invoke:
     subagent: native          # this harness can spawn it directly
     external: "claude -p"     # or a CLI command template
+  effort_map:                 # provider-agnostic level -> provider setting
+    low: low
+    high: high
   models:
     claude-sonnet-5:
       price: { input_per_mtok: 3.00, output_per_mtok: 15.00 }   # optional
-      effort: [low, medium, high, max]
+      effort: [low, medium, high, max]   # levels a stage may set
+    claude-haiku-4-5: {}      # no effort list: inherit only
 ```
+
+A model's `effort` list names the levels a delegated stage may set on
+it; the provider's `effort_map` turns each into the provider's own
+setting. A model with no list accepts only `inherit`, which is also what
+a stage gets when it names no effort.
 
 ### 5.2 Block
 

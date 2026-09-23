@@ -81,9 +81,11 @@
         "low",
         "medium",
         "high",
-        "max"
+        "max",
+        "inherit"
       ],
-      "description": "Provider-agnostic effort level, on delegated stages only. Adapters map it to provider-specific settings. An inline stage runs at the session's effort, which no manifest can change."
+      "default": "inherit",
+      "description": "Provider-agnostic effort level, on delegated stages only. Adapters map it to provider-specific settings through the provider's effort_map; a level must be one the model lists under effort in the provider catalog. inherit, the default when absent, sets nothing: the worker runs at its runner's default. An inline stage runs at the session's effort, which no manifest can change."
     },
     "OnFail": {
       "type": "string",
