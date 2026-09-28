@@ -920,6 +920,12 @@ parts:
       agents: 2
     status: planned
 estimate: { aggregate_reserved_tokens: 921000, agents: 4, sessions: 3 }
+discoveries:                        # appended by the part that found each one
+  - date: 2026-09-18
+    part: 1
+    finding: "401 retries are driven by the token cache, not the client; part 3 owns the cache."
+    evidence: runs/2026-09-16-auth-hardening/1-refresh-on-401/log.yaml
+    adjusted: "part 3 gains src/auth/cache.ts and the retry acceptance check"
 ```
 
 `owns` is the part's files, and the plan's cut is checkable from it: a
@@ -937,6 +943,15 @@ plan file is the index and the running status. Parts run in the order
 expects earlier parts to have left in the tree. A part with more than one
 slice is one session with several workers, and `sessions` counts it once.
 
+The plan changes as soon as a part learns something that contradicts it:
+a premise or cause the intent relied on, or a later part's scope, order,
+ownership or acceptance target. The part that found it appends an entry
+to `discoveries` and shows the adjusted cut for the later parts. On
+approval, it rewrites their entries and manifests before it closes. Parts
+already `done` are never rewritten. A target a part cannot meet becomes
+the acceptance check of a named later part. It is never left as a note
+carried forward.
+
 ---
 
 ## 9. Non-goals for 0.1
@@ -946,4 +961,6 @@ slice is one session with several workers, and `sessions` counts it once.
 - Cross-run scheduling or queues.
 - Defining adapter internals. Runners own that.
 - Mid-run re-approval. The planned manifest is approved once; what
-  actually ran is recorded, not re-negotiated.
+  actually ran is recorded, not re-negotiated. The exception is a
+  discovery that invalidates the running part's intent, or that changes
+  later parts of a plan. That is asked once, when it is found.
