@@ -721,9 +721,10 @@ anthropic:
     fast:     { alias: haiku }  # no effort list: inherit only
 ```
 
-No model ids. Each tier maps to an `alias` the provider's runner
-resolves to its current release, so a new release changes nothing here
-and a new model family is one upstream edit. A tier the provider does
+Each tier maps to an `alias`: a floating name the provider's runner
+resolves to its current release, so a new release changes nothing here,
+or, for a runner without floating names (Codex), the model id itself,
+updated here when a model ships. It is the only file that names an id. A tier the provider does
 not map, or an alias of `null`, runs on the runner's default. The file
 is upstream's: installs re-copy it rather than editing it.
 

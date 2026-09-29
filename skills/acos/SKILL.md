@@ -29,9 +29,11 @@ another folder for the project's own files; follow it.
 No `catalog/`: ACOS is not installed; say so and stop. No `config.yaml`:
 run `init` first, then continue.
 
-**Models.** Installed files never name a model id. They ask for a
-**tier** (`fast`, `balanced`, `strong`, `local`); `providers.yaml` maps
-it to an **alias** the runner keeps current (`opus`, a Codex profile).
+**Models.** Blocks, presets and `config.yaml` never name a model id.
+They ask for a **tier** (`fast`, `balanced`, `strong`, `local`);
+`providers.yaml` maps it to an **alias**: a floating name the runner
+keeps current (`opus`), or the model id itself for a runner without
+one (Codex).
 Only the manifest names an id: at compose time write each delegated
 stage's `tier`, and in `model` the id its alias points to today as far
 as the harness tells you, or the alias itself if it does not (say so in

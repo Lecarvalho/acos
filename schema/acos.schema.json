@@ -765,7 +765,7 @@
         "strong",
         "local"
       ],
-      "description": "Role tier. The provider catalog maps it to an alias the runner resolves to its current release; installed files never name a model id."
+      "description": "Role tier. The provider catalog maps it to an alias: a floating name the runner keeps current, or the model id for a runner without one. Blocks, presets and project config never name a model id."
     }
   }
 }

@@ -19,22 +19,15 @@ Copy `skills/acos/` from this repo to:
   .gitignore
 ```
 
-## 2. Models: nothing to maintain
+## 2. Models
 
-No installed file names a model id. Blocks, presets and `config.yaml` ask
-for a tier (`fast`, `balanced`, `strong`); `catalog/providers.yaml` maps
-each tier to an alias the runner resolves to its latest release (`opus`,
-`sonnet`, `haiku`). A new model release needs no edit in any repo. Each
+Blocks, presets and `config.yaml` never name a model id: they ask for a
+tier (`fast`, `balanced`, `strong`). `catalog/providers.yaml`, the one
+file that may name ids, maps each tier to an alias. Claude's aliases
+float (`opus`, `sonnet`, `haiku`), so a Claude release needs no edit.
+Codex has no floating names, so its aliases are model ids: when OpenAI
+ships, update them in upstream `providers.yaml` and re-copy it. Each
 manifest names the concrete id, written fresh when the run is composed.
-
-Codex has no floating aliases, so its tiers are Codex profiles. Write
-them once per machine, one file per tier, in `~/.codex/`:
-
-```
-~/.codex/acos-strong.config.toml     model = "<current strong model id>"
-~/.codex/acos-balanced.config.toml   model = "<current balanced model id>"
-~/.codex/acos-fast.config.toml       model = "<current fast model id>"
-```
 
 To decide which tier and effort a block gets in this repo, add a
 `stages` entry to `config.yaml` (see `config.example.yaml`). Blocks and

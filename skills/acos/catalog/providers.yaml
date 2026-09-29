@@ -2,11 +2,12 @@
 #
 # One entry per provider the orchestrator may route a stage to.
 #
-# No model ids. Ids change every few weeks; this file should not. Each
-# provider maps the role tiers blocks and presets ask for (`fast`,
-# `balanced`, `strong`, `local`) to an `alias`: the name its runner
-# resolves to its current release (`opus` is always the latest Opus). A
-# new release needs no edit here; a new model family does, once, upstream.
+# This is the only file that may name a model id. Each provider maps the
+# role tiers blocks and presets ask for (`fast`, `balanced`, `strong`,
+# `local`) to an `alias`: what its runner is invoked with. Where the
+# runner has floating names, the alias is one (`opus` is always the
+# latest Opus) and a release needs no edit. Where it has none (Codex),
+# the alias is the model id itself: update it here when a model ships.
 #
 # The manifest is where a concrete id is written. At compose time the
 # orchestrator resolves each delegated stage's alias to the id the runner
@@ -60,19 +61,17 @@ providers:
       inline: null
       subagent: null
       workflow: null
-      # Codex has no floating model names, so tiers are Codex profiles:
-      # ~/.codex/acos-<tier>.config.toml, one line `model = "<id>"` each,
-      # written once per machine. The model id lives there, not in a repo.
-      external: "codex exec --profile {{alias}} -c model_reasoning_effort={{effort}}"
+      # Codex has no floating model names: each alias below is a model id.
+      external: "codex exec --model {{alias}} -c model_reasoning_effort={{effort}}"
     effort_map:
       low: low
       medium: medium
       high: high
       max: high
     tiers:
-      strong:   { alias: acos-strong,   effort: [low, medium, high, max] }
-      balanced: { alias: acos-balanced, effort: [low, medium, high, max] }
-      fast:     { alias: acos-fast,     effort: [low, medium, high, max] }
+      strong:   { alias: gpt-6-astra, effort: [low, medium, high, max] }
+      balanced: { alias: gpt-6-sol,   effort: [low, medium, high, max] }
+      fast:     { alias: gpt-6-luna,  effort: [low, medium, high, max] }
 
   google:
     label: Google (Gemini)

@@ -44,7 +44,7 @@ stages:
     adapter: external
     provider: openai
     tier: strong
-    model: acos-strong        # the Codex profile, when the session cannot read its id
+    model: gpt-6-astra
     effort: high
     inputs: [plan, diff]
     outputs: [review]
