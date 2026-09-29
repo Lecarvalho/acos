@@ -82,11 +82,10 @@ folder. Load the `workflow-authoring` skill before writing the script.
 Run a shell command from the provider catalog.
 
 - Take `providers.<provider>.invoke.external`. Substitute `{{alias}}`
-  with the stage tier's alias. When the tier is unmapped, drop
-  `{{alias}}` and the flag in front of it, so the CLI runs its default
-  model. Substitute
-  `{{effort}}` (via the provider's `effort_map`). On `inherit`,
-  `{{effort}}` becomes an empty string and the CLI runs at its default.
+  with the stage tier's alias and `{{effort}}` through the provider's
+  `effort_map`. An empty value (unmapped tier, `inherit`) drops the
+  whole argument holding it and the flag in front of it, so the CLI
+  runs at its own default.
 - Pass the built prompt on stdin. Capture stdout as the stage output.
 - Non-zero exit is a stage error, distinct from a check failure. Log the
   exit code and the last lines of stderr, then apply `on_fail`.

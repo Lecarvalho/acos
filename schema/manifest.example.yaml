@@ -44,7 +44,7 @@ stages:
     adapter: external
     provider: openai
     tier: strong
-    model: strong             # a Codex profile; the session cannot see its id
+    model: acos-strong        # the Codex profile, when the session cannot read its id
     effort: high
     inputs: [plan, diff]
     outputs: [review]

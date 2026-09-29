@@ -27,15 +27,13 @@ each tier to an alias the runner resolves to its latest release (`opus`,
 `sonnet`, `haiku`). A new model release needs no edit in any repo. Each
 manifest names the concrete id, written fresh when the run is composed.
 
-Codex has no floating aliases, so its tiers are Codex profiles. Define
-them once per machine in `~/.codex/config.toml`:
+Codex has no floating aliases, so its tiers are Codex profiles. Write
+them once per machine, one file per tier, in `~/.codex/`:
 
-```toml
-[profiles.strong]
-model = "<current strong model id>"
-
-[profiles.fast]
-model = "<current fast model id>"
+```
+~/.codex/acos-strong.config.toml     model = "<current strong model id>"
+~/.codex/acos-balanced.config.toml   model = "<current balanced model id>"
+~/.codex/acos-fast.config.toml       model = "<current fast model id>"
 ```
 
 To decide which tier and effort a block gets in this repo, add a
