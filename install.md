@@ -10,8 +10,7 @@ Copy `skills/acos/` from this repo to:
 ```
 <your-repo>/.claude/skills/acos/
   SKILL.md
-  references/adapters.md
-  references/workflow.md
+  references/*.md
   scripts/shot.mjs
   catalog/providers.yaml
   catalog/blocks/*.yaml

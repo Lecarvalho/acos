@@ -45,7 +45,8 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
 | `schema/acos.schema.json` | JSON Schema (2020-12) for a manifest. |
 | `schema/manifest.example.yaml` | A complete manifest. |
 | `skills/acos/` | The skill: everything a project installs, as one folder. |
-| `skills/acos/SKILL.md`, `references/` | The orchestrator procedure, plus adapter notes. |
+| `skills/acos/SKILL.md` | The orchestrator procedure in one screen: files, commands, the loop, principles. |
+| `skills/acos/references/` | Detail each step loads when it runs: sizing, manifest, execute, maintain (init, calibrate, save-preset), adapters, workflow. |
 | `skills/acos/catalog/providers.yaml` | Providers: tier-to-alias mapping (`strong: opus`), effort levels, how to invoke them. No model ids. |
 | `skills/acos/catalog/blocks/` | Reusable stage definitions: explore, plan, contract, implement, evidence, review, verify. |
 | `skills/acos/presets/` | Optional starting pipelines: `solo`, `plan-build-review`, `fan-out`. Runs compose ad hoc from blocks by default; `/acos save-preset` promotes a good run into a preset. |
