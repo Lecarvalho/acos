@@ -47,7 +47,7 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
 | `skills/acos/` | The skill: everything a project installs, as one folder. |
 | `skills/acos/SKILL.md` | The orchestrator procedure in one screen: files, commands, the loop, principles. |
 | `skills/acos/references/` | Detail each step loads when it runs: sizing, manifest, execute, maintain (init, calibrate, save-preset), adapters, workflow. |
-| `skills/acos/catalog/providers.yaml` | Providers: tier-to-alias mapping (`strong: opus`), effort levels, how to invoke them. The only file that may name model ids, for runners without floating names (Codex). |
+| `skills/acos/catalog/providers.yaml` | Providers: tier-to-alias mapping (`strong: opus`), effort levels, how to invoke them. Families, not ids (`opus`, `sol`); the Codex command adds the generation (`gpt-6-`). |
 | `skills/acos/catalog/blocks/` | Reusable stage definitions: explore, plan, contract, implement, evidence, review, verify. |
 | `skills/acos/presets/` | Optional starting pipelines: `solo`, `plan-build-review`, `fan-out`. Runs compose ad hoc from blocks by default; `/acos save-preset` promotes a good run into a preset. |
 | `skills/acos/config.example.yaml` | Shape of a project's `config.yaml`, which `/acos init` writes into the installed skill folder. |
@@ -110,9 +110,9 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
 - **Scope is optional and advisory.** Hints, not a sandbox.
 - **Presets reference model tiers** (`fast`, `balanced`, `strong`), not
   model ids, and so do blocks and project config. `providers.yaml` maps
-  a tier to an alias: a floating name where the runner has one (`opus`),
-  so a Claude release changes nothing, or the model id where it has none
-  (Codex), updated in that one file. Only the manifest names an id, written
+  a tier to a model family (`opus`, `sol`); the Codex command adds the
+  generation (`gpt-6-`), so a release changes nothing and a generation
+  is one line. Only the manifest names an id, written
   fresh at compose time; the log records the one that ran. A repo picks
   tier and effort per block in `config.yaml` `stages`.
 - **After GO, no re-approval.** Changes in flight are drift: applied

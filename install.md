@@ -22,11 +22,12 @@ Copy `skills/acos/` from this repo to:
 ## 2. Models
 
 Blocks, presets and `config.yaml` never name a model id: they ask for a
-tier (`fast`, `balanced`, `strong`). `catalog/providers.yaml`, the one
-file that may name ids, maps each tier to an alias. Claude's aliases
-float (`opus`, `sonnet`, `haiku`), so a Claude release needs no edit.
-Codex has no floating names, so its aliases are model ids: when OpenAI
-ships, update them in upstream `providers.yaml` and re-copy it. Each
+tier (`fast`, `balanced`, `strong`). `catalog/providers.yaml` maps each
+tier to a model family: `opus`, `sonnet`, `haiku` for Claude, `astra`,
+`sol`, `luna` for Codex. Claude resolves families itself, so a release
+needs no edit. Codex needs full ids, so its invoke command adds the
+generation (`--model gpt-6-{{alias}}`): a new generation is one line in
+upstream `providers.yaml`, re-copied. Each
 manifest names the concrete id, written fresh when the run is composed.
 
 To decide which tier and effort a block gets in this repo, add a

@@ -31,9 +31,9 @@ run `init` first, then continue.
 
 **Models.** Blocks, presets and `config.yaml` never name a model id.
 They ask for a **tier** (`fast`, `balanced`, `strong`, `local`);
-`providers.yaml` maps it to an **alias**: a floating name the runner
-keeps current (`opus`), or the model id itself for a runner without
-one (Codex).
+`providers.yaml` maps it to an **alias**, a model family (`opus`,
+`sol`); where the runner needs full ids, its invoke command adds the
+generation (`gpt-6-{{alias}}`).
 Only the manifest names an id: at compose time write each delegated
 stage's `tier`, and in `model` the id its alias points to today as far
 as the harness tells you, or the alias itself if it does not (say so in

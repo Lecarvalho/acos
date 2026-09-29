@@ -2,12 +2,12 @@
 #
 # One entry per provider the orchestrator may route a stage to.
 #
-# This is the only file that may name a model id. Each provider maps the
-# role tiers blocks and presets ask for (`fast`, `balanced`, `strong`,
-# `local`) to an `alias`: what its runner is invoked with. Where the
-# runner has floating names, the alias is one (`opus` is always the
-# latest Opus) and a release needs no edit. Where it has none (Codex),
-# the alias is the model id itself: update it here when a model ships.
+# No model ids, only model families. Each provider maps the role tiers
+# blocks and presets ask for (`fast`, `balanced`, `strong`, `local`) to
+# an `alias`: a family name. Where the runner resolves families itself
+# (`opus` is always the latest Opus), a release needs no edit. Where it
+# does not (Codex), the invoke command adds the generation once
+# (`gpt-6-{{alias}}`): a new generation is that one line.
 #
 # The manifest is where a concrete id is written. At compose time the
 # orchestrator resolves each delegated stage's alias to the id the runner
@@ -61,17 +61,17 @@ providers:
       inline: null
       subagent: null
       workflow: null
-      # Codex has no floating model names: each alias below is a model id.
-      external: "codex exec --model {{alias}} -c model_reasoning_effort={{effort}}"
+      # Codex wants full ids: the generation lives here, the family below.
+      external: "codex exec --model gpt-6-{{alias}} -c model_reasoning_effort={{effort}}"
     effort_map:
       low: low
       medium: medium
       high: high
       max: high
     tiers:
-      strong:   { alias: gpt-6-astra, effort: [low, medium, high, max] }
-      balanced: { alias: gpt-6-sol,   effort: [low, medium, high, max] }
-      fast:     { alias: gpt-6-luna,  effort: [low, medium, high, max] }
+      strong:   { alias: astra, effort: [low, medium, high, max] }
+      balanced: { alias: sol,   effort: [low, medium, high, max] }
+      fast:     { alias: luna,  effort: [low, medium, high, max] }
 
   google:
     label: Google (Gemini)

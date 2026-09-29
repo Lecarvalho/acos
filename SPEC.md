@@ -721,10 +721,11 @@ anthropic:
     fast:     { alias: haiku }  # no effort list: inherit only
 ```
 
-Each tier maps to an `alias`: a floating name the provider's runner
-resolves to its current release, so a new release changes nothing here,
-or, for a runner without floating names (Codex), the model id itself,
-updated here when a model ships. It is the only file that names an id. A tier the provider does
+Each tier maps to an `alias`, a model family (`opus`, `sol`). A runner
+that resolves families itself gets it as is; for one that needs full
+ids (Codex), the invoke command adds the generation
+(`--model gpt-6-{{alias}}`). A release changes nothing here; a new
+generation is one line. A tier the provider does
 not map, or an alias of `null`, runs on the runner's default. The file
 is upstream's: installs re-copy it rather than editing it.
 
