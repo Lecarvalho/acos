@@ -1,6 +1,7 @@
 ---
 name: acos
-description: Compose an ACOS run manifest from the project's block catalog, show it, wait for GO, then execute it stage by stage. Use when the user invokes /acos, asks to "run this through acos", or the user asks for a non-trivial code change in this repository.
+description: Size a task against the project's session limits, compose an ACOS run manifest (or a plan of manifests, one per session), show it, wait for GO, then execute it without further interruptions and record what actually ran. Runs only when the user invokes /acos.
+disable-model-invocation: true
 ---
 
 # ACOS runner

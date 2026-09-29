@@ -58,6 +58,9 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
 
 ## Design choices
 
+- **Only the user starts ACOS.** The skill never triggers itself:
+  `disable-model-invocation: true` for Claude Code,
+  `agents/openai.yaml` `allow_implicit_invocation: false` for Codex.
 - **The GO gate is mandatory.** Only a project's own `config.yaml` can set
   it to `auto`. Presets cannot.
 - **Limits and estimates are advisory.** Per-context limits (orchestrator

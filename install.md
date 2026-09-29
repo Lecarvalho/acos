@@ -9,7 +9,8 @@ Copy `skills/acos/` from this repo to:
 
 ```
 <your-repo>/.claude/skills/acos/
-  SKILL.md
+  SKILL.md                 manual only: disable-model-invocation (Claude Code)
+  agents/openai.yaml       manual only: allow_implicit_invocation: false (Codex)
   references/*.md
   scripts/shot.mjs
   catalog/providers.yaml
@@ -101,7 +102,7 @@ In Claude Code:
 /acos add silent token refresh on 401 in the auth client
 ```
 
-or just describe the task and ask for it to be run through ACOS. You will
+The skill runs only when invoked this way; the agent never starts it on its own. You will
 see the manifest, reply `GO`, and the run starts. It does not stop again
 unless a check fails with `on_fail: ask` or a gate is set.
 

@@ -1,6 +1,7 @@
 ---
 name: acos
-description: Size a task against the project's session limits, compose an ACOS run manifest (or a plan of manifests, one per session), show it, wait for GO, then execute it without further interruptions and record what actually ran. Use when the user invokes /acos, asks to "run this through acos", or the project has ACOS installed and the user asks for a non-trivial code change.
+description: Size a task against the project's session limits, compose an ACOS run manifest (or a plan of manifests, one per session), show it, wait for GO, then execute it without further interruptions and record what actually ran. Runs only when the user invokes /acos.
+disable-model-invocation: true
 ---
 
 # ACOS runner
@@ -19,7 +20,7 @@ another folder for the project's own files; follow it.
 
 | Path | What | Owner |
 |------|------|-------|
-| `SKILL.md`, `references/`, `scripts/` | procedure and tools | upstream |
+| `SKILL.md`, `references/`, `scripts/`, `agents/openai.yaml` | procedure, tools, Codex policy | upstream |
 | `catalog/providers.yaml` | tier aliases, effort levels, invoke commands | upstream |
 | `catalog/blocks/`, `presets/` | stage blocks, optional pipelines | project once copied |
 | `config.yaml` | project defaults, written by `init` | project |
