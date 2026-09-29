@@ -2,7 +2,7 @@ name: evidence
 role: "Show what the part or named deferred parts changed: run every carried capture line, look at every crop, caption it, write artifacts/try-it.md, and say whether each crop shows its claim."
 default:
   adapter: subagent
-  model: "{{ project.models.balanced }}"
+  tier: balanced
   effort: low
 inputs: [diff]
 outputs: [try-it]

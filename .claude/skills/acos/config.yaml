@@ -1,13 +1,13 @@
-# Project defaults for ACOS, derived by `/acos init` from this repository.
-# Catalog files reference these with {{ project.* }}.
+# Project defaults for ACOS in this repository, derived by `/acos init`.
+# The skill itself is skills/acos/; this file, calibration.md and runs/ are
+# this repository's own and sit next to the pointer SKILL.md.
+# Catalog files reference these with {{ project.* }}. No model ids here or
+# in the catalog: stages ask for a tier, and compose writes the current id
+# into the manifest.
 
 acos: "0.1"
 
-provider: anthropic
-models:
-  fast: claude-haiku-4-5         # scripted work, cheap checks
-  balanced: claude-sonnet-5      # explorers, fan-out implementers, evidence
-  strong: claude-opus-5          # planning, review, escalation
+provider: anthropic              # tiers resolve through catalog/providers.yaml
 
 # This repository is Markdown, YAML, a JSON schema and small Node scripts.
 # Verify checks the capture script, estimation contract examples and schema.

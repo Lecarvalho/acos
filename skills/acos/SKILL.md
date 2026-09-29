@@ -1,6 +1,6 @@
 ---
 name: acos
-description: Size a task against the project's session limits, compose an ACOS run manifest (or a plan of manifests, one per session), show it, wait for GO, then execute it without further interruptions and record what actually ran. Use when the user invokes /acos, asks to "run this through acos", or the project has a .acos.yaml and the user asks for a non-trivial code change.
+description: Size a task against the project's session limits, compose an ACOS run manifest (or a plan of manifests, one per session), show it, wait for GO, then execute it without further interruptions and record what actually ran. Use when the user invokes /acos, asks to "run this through acos", or the project has ACOS installed and the user asks for a non-trivial code change.
 ---
 
 # ACOS runner
@@ -14,17 +14,44 @@ re-approval. At the end you write down what actually ran.
 This file is the operating procedure. Adapter details:
 `references/adapters.md`. Workflow compilation: `references/workflow.md`.
 
-## 0. Locate the catalog
+## 0. The skill folder
 
-Look, in order, for:
+Everything ACOS reads or writes lives in the **skill folder**: the
+directory holding this SKILL.md. A pointer SKILL.md that sends you here
+may name another folder for the project's own files; follow it. Every
+ACOS path in this file is relative to the skill folder, never to the repo
+root:
 
-1. `acos/` in the repo root (imported copy: `catalog/`, `presets/`,
-   optional `calibration.md`)
-2. `.claude/skills/acos/catalog/` and `.claude/skills/acos/presets/` (bundled copy)
+| Path | What | Owner |
+|------|------|-------|
+| `SKILL.md`, `references/`, `scripts/` | the procedure | upstream; re-copied on update |
+| `catalog/providers.yaml` | providers, tier aliases, invoke commands | upstream; re-copied on update |
+| `catalog/blocks/` | stage blocks | project once copied |
+| `presets/` | optional pipelines; `save-preset` adds here | project once copied |
+| `config.example.yaml` | the shape of `config.yaml` | upstream |
+| `config.yaml` | project defaults, written by init | project |
+| `calibration.md` | written by calibrate | project |
+| `runs/` | manifests, plans, logs, artifacts | project |
+| `.gitignore` | keeps `runs/` out of git | project once copied |
 
-Read `.acos.yaml` from the repo root if present. If the catalog is missing,
-tell the user ACOS is not installed here and stop. If the catalog exists
-but `.acos.yaml` does not, run **init** (section 7) first, then continue.
+Read `config.yaml` if present. If `catalog/` is missing, tell the user
+ACOS is not installed here and stop. If the catalog exists but
+`config.yaml` does not, run **init** (section 7) first, then continue.
+
+**No file in the skill folder names a model id.** Ids change faster
+than installs are updated. Blocks, presets and `config.yaml` ask for a
+**tier** (`fast`, `balanced`, `strong`, `local`); `catalog/providers.yaml`
+maps each tier to an **alias** the runner resolves to its current
+release (`opus`, `sonnet`, `haiku`; a Codex profile name). The
+**manifest** is where the concrete id is written: it is fresh, written
+by this session, and never shipped. At compose time, for each delegated
+stage, write `tier` and, in `model`, the id that alias points at today,
+as far as you can tell from the harness (your own model list, the
+environment block, the CLI's help). If you cannot tell, write the alias
+itself and say so in `estimate.basis`. The adapter always invokes by
+alias; the run log records the id that actually ran when the runner
+reports it. A tier the provider does not map runs on the runner's
+default and is said so in the manifest.
 
 ## Subcommands
 
@@ -32,17 +59,17 @@ but `.acos.yaml` does not, run **init** (section 7) first, then continue.
 |------------|--------|
 | `/acos <task>` | Size, compose, present, GO, execute, report. Sections 1 to 6. A task that does not fit becomes a plan; see section 2. |
 | `/acos plan <task>` | Size and compose only. Nothing executes. Big task: agree the cut, write the plan, stop. Small task: say so, write one manifest, stop. Section 2. |
-| `/acos run <path> [n]` | Execute an existing manifest: a manifest file, a run dir, or a plan dir plus part index (default: the first part not `done`). Show it, GO, execute. Section 4 onward. |
-| `/acos init` | Derive `.acos.yaml` from the repo. Section 7. |
-| `/acos calibrate` | Read past runs, write `acos/calibration.md`. Section 8. Run it in its own session. |
-| `/acos save-preset <name>` | Save the last run's stage shape, drift applied, as `acos/presets/<name>.yaml`. Section 9. |
+| `/acos run <path> [n]` | Execute an existing manifest: a manifest file, a run dir, or a plan dir plus part index (default: the first part not `done`). A bare id or `runs/<id>` resolves under the skill folder. Show it, GO, execute. Section 4 onward. |
+| `/acos init` | Derive `config.yaml` from the repo. Section 7. |
+| `/acos calibrate` | Read past runs, write `calibration.md`. Section 8. Run it in its own session. |
+| `/acos save-preset <name>` | Save the last run's stage shape, drift applied, as `presets/<name>.yaml`. Section 9. |
 | `/acos show` | Print the last manifest for this session, or the newest under `runs/`. |
 
 ## Economy rules
 
 These decide most of the manifest. Apply them before anything else.
 
-- **You do not start at zero.** `.acos.yaml` `startup` says what this
+- **You do not start at zero.** `config.yaml` `startup` says what this
   session carries before it reads anything (system prompt, tools, MCP
   servers, memory, skills) and what a fresh worker carries. Missing key:
   40000 for you, 25000 for a worker, said in `basis`. Your budget for
@@ -81,13 +108,14 @@ These decide most of the manifest. Apply them before anything else.
   when present, caps aggregate worker reservations.
 - **Tier by role, effort only where it exists.** You plan, brief, judge
   and hand off on the session model. Fan-out implementers run on
-  `{{ project.models.balanced }}` at medium. Evidence runs on `balanced`
+  `balanced` at medium. Evidence runs on `balanced`
   at low: it must see the crops. Review runs on `strong` at high. A
   stage that is only a command runs no model. Effort belongs to a
   delegated stage only: yours is fixed for the whole session, so never
   give an inline stage an effort and never plan as if step 1 could run
-  high and step 3 low. A preset or `.acos.yaml` may override a tier;
-  `calibration.md` says when one is not holding up in this repo.
+  high and step 3 low. `config.yaml` `stages` may move a block to another
+  tier or effort for this repo; `calibration.md` says when a tier is not
+  holding up here.
 - **Plan and implement share one context, unless it is a fan-out.** For
   one slice: both inline, or both in the same subagent. For two or more
   disjoint slices: you plan once and write a brief per slice; each
@@ -112,7 +140,7 @@ These decide most of the manifest. Apply them before anything else.
   a wide read whose result is one page, the clearest case there is for a
   worker.
 - **Evidence only where there is something to see.** Add `evidence` when
-  the part changes a visible surface and `.acos.yaml` has `shot`. Without
+  the part changes a visible surface and `config.yaml` has `shot`. Without
   either, no capture stage and no try-it page. When it runs, it is a
   subagent that runs the captures, looks at every crop and captions it;
   the pixels never enter your context, and its verdict is a check the part
@@ -171,13 +199,13 @@ other way round.
    bound one context: an inline part, or one slice. A part that
    fans out may total more across its slices, but no single slice may
    break them.
-2. **Subtract the startup load.** Read `.acos.yaml` `startup`
+2. **Subtract the startup load.** Read `config.yaml` `startup`
    (`orchestrator`, `subagent`; 40k and 25k when the key is absent).
    Your work budget for this part is `limits.orchestrator_tokens` minus
    `startup.orchestrator` — with the defaults, 80k, not 120k. Every
    part of a plan pays that startup again, in its own session. Put the
    figure in `estimate.orchestrator.startup_tokens` and name it in `basis`.
-3. **Classify and reserve context.** Use `acos/calibration.md` Cost
+3. **Classify and reserve context.** Use `calibration.md` Cost
    figures when they apply. Otherwise set `calibration: fallback`,
    `confidence: low`, and use these conservative floors:
    - semantic inline: 40k + 12k per file touched, on top of your startup
@@ -335,14 +363,17 @@ Each must therefore be complete on its own: intent, scope, stages,
 ## 3. Compose the manifest
 
 1. Pick a starting shape, in this order: a preset the user named,
-   `calibration.md` Shape guidance for this kind of task, `.acos.yaml`
+   `calibration.md` Shape guidance for this kind of task, `config.yaml`
    `preset`, otherwise ad hoc from blocks per the economy rules. Leave
    `preset` out when ad hoc.
 2. For each stage, merge in this order, later wins: block defaults,
-   preset stage entry, project defaults for missing provider/model,
-   calibration adjustments, user overrides given in the request.
-3. Substitute every `{{ project.* }}` placeholder from `.acos.yaml`. A
+   preset stage entry, `config.yaml` `stages.<block>` (tier, effort),
+   `config.yaml` `provider` when none is named, calibration adjustments,
+   user overrides given in the request.
+3. Substitute every `{{ project.* }}` placeholder from `config.yaml`. A
    placeholder with no value is a compose error: say which one and stop.
+   Resolve each delegated stage's and escalation entry's `tier` to its
+   alias and current id, per section 0.
 4. Generate `id`: `YYYY-MM-DD-<short-slug-of-intent>`.
 5. Fill `scope` only if the user gave hints or it is obvious. Otherwise omit.
    With a design, fill `design.sources` with every path or URL, and
@@ -356,9 +387,9 @@ Each must therefore be complete on its own: intent, scope, stages,
    `observed_tokens: null`, `agents`, and per-stage work classes and
    reservations. Write `basis` saying where startup came from, which
    figures came from project calibration or fallback floors, and any
-   ratio applied from earlier measured parts. Add `cost` only if the
-   catalog has prices for the chosen models.
-7. Copy `limits` from `.acos.yaml`; apply any per-run override the user
+   ratio applied from earlier measured parts. Add `cost` only if you
+   know current prices for the resolved models; never guess them.
+7. Copy `limits` from `config.yaml`; apply any per-run override the user
    gave in sizing.
 8. If any stage has `adapter: workflow`, compile the script(s) now per
    `references/workflow.md` and write them under `runs/<id>/`. They are
@@ -372,8 +403,8 @@ whose visible stages do not read `design-contract`, is a compose error. An inlin
 carries no `provider`, `model` or `effort`: they are invalid there, and
 the session could not honour them anyway. If a stage needs a model or an
 effort other than the session's, delegate it. A delegated stage with no
-effort runs at `inherit`; any other level must be in its model's
-`effort` list in `acos/catalog/providers.yaml`, and a level the model
+effort runs at `inherit`; any other level must be in its tier's
+`effort` list in `catalog/providers.yaml`, and a level the tier
 does not list is a compose error. Escalation entries follow the same
 rule. Stages that will run
 at the same time (consecutive delegated stages with no input/output
@@ -452,7 +483,7 @@ compiled workflow script gets a line there too:
 Then stop. Do not start any stage. Do not spawn any agent. Do not read
 files beyond what sizing and composing needed. For `/acos run` of an
 existing manifest, that means no catalog and no presets: the manifest is
-complete, and the only reads before GO are `.acos.yaml`, `calibration.md`,
+complete, and the only reads before GO are `config.yaml`, `calibration.md`,
 the manifest, `plan.yaml` and the previous part's handoff.
 
 Print the full YAML only if the user asks for it. Scope, prompts, loop
@@ -467,7 +498,7 @@ a rule. It goes between the Manifest line and the GO prompt, so the last
 line printed is the one asking for a decision.
 
 If the user asks for changes, produce a new manifest and present again.
-If `.acos.yaml` sets `gates.go: auto`, say so in the header line and
+If `config.yaml` sets `gates.go: auto`, say so in the header line and
 proceed without waiting. Presets cannot set this.
 
 ## 5. Execute
@@ -631,9 +662,9 @@ record.
 - paths worth opening: the run directory, the handoff, the try-it page,
   anything a stage wrote for the user
 
-## 7. Init: derive `.acos.yaml`
+## 7. Init: derive `config.yaml`
 
-Goal: write a correct `.acos.yaml` without the user editing a template.
+Goal: write a correct `config.yaml` without the user editing a template.
 
 1. Find the verify command. Look, in order, at: `package.json` scripts
    (`test`, `check`, `verify`, `lint`), `Makefile` targets, `pyproject.toml`
@@ -648,8 +679,9 @@ Goal: write a correct `.acos.yaml` without the user editing a template.
 3. Detect reachable providers. Run `which`/`Get-Command` for `claude`,
    `codex`, `gemini`, `ollama`. Keep only providers whose CLI exists, plus
    the harness's native provider.
-4. Fill model tiers from `catalog/providers.yaml` for the native provider:
-   `fast` = tier fast, `balanced` = tier balanced, `strong` = tier strong.
+4. Set `provider` to the harness's native provider. Write no model ids
+   and no `stages` overrides: block defaults hold until the user or
+   calibrate says otherwise. Say which alias each tier maps to.
 5. Pick `preset`: leave unset. Ad hoc composition is the default until
    the user saves one.
 6. Set `gates.go: required`. Set `limits` to the defaults
@@ -681,7 +713,7 @@ Goal: write a correct `.acos.yaml` without the user editing a template.
    the repo named it) or the startup load needs a `/context` paste; ask
    both in one message, and show just those lines.
 
-Never overwrite an existing `.acos.yaml` without asking.
+Never overwrite an existing `config.yaml` without asking.
 
 ## 8. Calibrate: learn from past runs
 
@@ -709,14 +741,18 @@ sizing and compose more accurate for this repo.
    which get added, which checks get changed the same way, how far
    estimates miss, what task shape tends to need which stages. A miss of
    about the same size on every part, in the same direction, is not
-   noise: it is `.acos.yaml` `startup` being stale or absent. Say so in
+   noise: it is `config.yaml` `startup` being stale or absent. Say so in
    **Recurring drift**, with the date `startup.basis` carries, and tell
    the user to re-run `/acos init`. Where a plan's parts overlapped on
    files — the same path owned by two parts, or read by three — say how
    much the re-reads cost and that the cut ran along layers. Always
    derive the per-unit figures sizing needs: tokens per file for inline
    implement, fixed cost plus tokens per file for a subagent, cost of a
-   review, how often review fails first time. Per tier: how often a
+   review, how often review fails first time. Group per-unit figures by
+   the model id each stage's log says ran, not only by tier: when the id
+   behind a tier changed between runs, say so in **Cost**, keep the
+   figures from the current id, and mark older ones as from the previous
+   model rather than averaging across both. Per tier: how often a
    balanced-tier implementer passed its check first time, and how often
    the orchestrator had to finish a slice; when that is worse than one in
    three, the Shape section says to run implementers on `strong` or to
@@ -726,7 +762,7 @@ sizing and compose more accurate for this repo.
    stage, part start to part end, and the gap from one part's end to
    the next part's start, so the Cost section can say whether fan-out
    and parallel parts shortened the plan and where the time went.
-5. Write `acos/calibration.md` in this fixed shape: a header line with
+5. Write `calibration.md` in this fixed shape: a header line with
    the run count, the date range and today's date; then sections
    **Shape**, **Cost**, **Recurring drift**, **Notes**. Under
    40 lines. Overwrite the previous file; if it had a **Notes** section,
@@ -734,7 +770,7 @@ sizing and compose more accurate for this repo.
    points at a config fix (verify command, a block default, a limit)
    should name the file to change.
 6. Say where the file is, give one line per section, and stop. Do not
-   change `.acos.yaml`, blocks or presets; suggest those changes in
+   change `config.yaml`, blocks or presets; suggest those changes in
    **Recurring drift** and let the user decide.
 
 Refuse politely if fewer than two runs exist: say so and stop.
@@ -745,20 +781,20 @@ Take the last run from this session (or `runs/<newest>/`): its
 `manifest.yaml` with the stage drift from `log.yaml` applied (dropped
 stages removed, added ones inserted, models and efforts as used). Strip
 run-specific fields: `id`, `intent`, `part`, `scope`, `estimate`,
-`outputs`. Replace concrete model ids with the matching
-`{{ project.models.<tier> }}` placeholder when they equal a tier in
-`.acos.yaml`, and the verify command with `{{ project.verify }}`. Keep
+`outputs`. Drop every concrete `model`, keeping `tier`: a preset
+never names an id. Replace the verify command with
+`{{ project.verify }}`. Keep
 adapters, checks, on_fail, escalation, loop and gates, and efforts on
 delegated stages only: an inline stage in a preset carries no model and
 no effort, whatever the session it came from was running. Add `name`
 and a one-line `description` derived from the intent. Write to
-`acos/presets/<name>.yaml`. Say the path and the stage list in one line.
+`presets/<name>.yaml`. Say the path and the stage list in one line.
 
 Refuse to overwrite an existing preset without asking.
 
 ## Rules
 
-- The GO gate is not optional. Only `.acos.yaml` can set it to `auto`.
+- The GO gate is not optional. Only `config.yaml` can set it to `auto`.
 - Inline stages have no model and no effort. The session's are fixed for
   its whole life; work that needs different ones is delegated, or is a
   part the user starts in a session set up for it.

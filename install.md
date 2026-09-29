@@ -1,9 +1,11 @@
 # Installing ACOS in a project
 
-Two copies land in your repo: the skill (so your agent knows the
-procedure) and the catalog (so it has blocks and presets to compose from).
+Everything ACOS needs, and everything it writes, lives in one folder: the
+installed skill. Nothing lands at the repo root.
 
 ## 1. Copy the skill
+
+Copy `skills/acos/` from this repo to:
 
 ```
 <your-repo>/.claude/skills/acos/
@@ -11,22 +13,35 @@ procedure) and the catalog (so it has blocks and presets to compose from).
   references/adapters.md
   references/workflow.md
   scripts/shot.mjs
-```
-
-Copy from `skills/acos/` in this repo.
-
-## 2. Copy the catalog and presets
-
-```
-<your-repo>/acos/
   catalog/providers.yaml
   catalog/blocks/*.yaml
   presets/*.yaml
+  config.example.yaml
+  .gitignore
 ```
 
-Copy the whole `acos/` folder from this repo. Edit `providers.yaml` so
-the `external` commands match the CLIs you actually have. Delete providers
-you do not use.
+## 2. Models: nothing to maintain
+
+No installed file names a model id. Blocks, presets and `config.yaml` ask
+for a tier (`fast`, `balanced`, `strong`); `catalog/providers.yaml` maps
+each tier to an alias the runner resolves to its latest release (`opus`,
+`sonnet`, `haiku`). A new model release needs no edit in any repo. Each
+manifest names the concrete id, written fresh when the run is composed.
+
+Codex has no floating aliases, so its tiers are Codex profiles. Define
+them once per machine in `~/.codex/config.toml`:
+
+```toml
+[profiles.strong]
+model = "<current strong model id>"
+
+[profiles.fast]
+model = "<current fast model id>"
+```
+
+To decide which tier and effort a block gets in this repo, add a
+`stages` entry to `config.yaml` (see `config.example.yaml`). Blocks and
+`providers.yaml` stay untouched.
 
 ## 3. Let the agent write project defaults
 
@@ -37,7 +52,7 @@ In Claude Code, run:
 ```
 
 The skill inspects the repo (test/lint scripts, installed provider CLIs,
-catalog model tiers) and writes `.acos.yaml`. It asks only about what it
+catalog model tiers) and writes `config.yaml` next to `SKILL.md`. It asks only about what it
 cannot read off the repo: the verify command when nothing named it, and
 the session's startup load.
 
@@ -50,8 +65,8 @@ paste it estimates and says so. Re-run `/acos init` after adding an MCP
 server, a skill or a memory file: the number moves, and every estimate
 moves with it.
 
-`.acos.example.yaml` in this repo shows the shape if you prefer to write
-it by hand.
+`config.example.yaml` shows the shape if you prefer to write it by hand.
+It names a `provider` and never a model id.
 
 `shot` is left pointing at the copied `scripts/shot.mjs`, which captures the
 cropped screenshots a part's try-it page is built from. A project whose
@@ -75,21 +90,17 @@ After a few runs, in a session of its own:
 /acos calibrate
 ```
 
-reads `runs/*/manifest.yaml`, `log.yaml` and `plan.yaml`,
-and writes `acos/calibration.md`: how this repo tends to behave (which
+reads `runs/*/manifest.yaml`, `log.yaml` and `plan.yaml` in the skill
+folder, and writes `calibration.md` beside them: how this repo tends to behave (which
 stages get dropped, what things cost, recurring fixes). Compose reads it.
 Commit it; it is the project's memory of its own runs.
 
-## 4. Ignore run output
+## 4. Run output
 
-Add to `.gitignore`:
-
-```
-runs/
-```
-
-Keep `runs/` out of the ignore list if you want `/acos calibrate` to see
-history across machines. Either way, commit `acos/calibration.md`.
+The skill's own `.gitignore` keeps `runs/` out of git; the repo's
+`.gitignore` needs no change. Delete that line if you want
+`/acos calibrate` to see history across machines. Either way, commit
+`calibration.md`.
 
 ## 5. Use it
 
@@ -104,7 +115,7 @@ see the manifest, reply `GO`, and the run starts. It does not stop again
 unless a check fails with `on_fail: ask` or a gate is set.
 
 If the task is bigger than the repo's session limits you get a plan
-instead: `runs/<plan-id>/plan.yaml` plus one manifest per part. Run each
+instead: `runs/<plan-id>/plan.yaml` in the skill folder, plus one manifest per part. Run each
 part in its own session:
 
 ```
@@ -118,8 +129,30 @@ enough for one run gets a single manifest instead of a plan.
 
 ## Updating
 
-Re-copy the skill folder. Catalog and presets are yours once copied; diff
-against this repo when you want upstream changes.
+Re-copy `SKILL.md`, `references/`, `scripts/`, `catalog/providers.yaml`
+and `config.example.yaml`. `catalog/blocks/`, `presets/`, `config.yaml`,
+`calibration.md` and `runs/` are yours once written; diff blocks and
+presets against this repo when you want upstream changes.
+
+### From the old layout
+
+Earlier installs spread ACOS across the repo root. Move each piece into
+the skill folder and drop the duplicate model ids:
+
+| Old | New |
+|-----|-----|
+| `.acos.yaml` | `config.yaml`, with its `models:` map removed |
+| `acos/catalog/` | `catalog/` |
+| `acos/presets/` | `presets/` |
+| `acos/calibration.md` | `calibration.md` |
+| `runs/` | `runs/` |
+| `runs/` line in the repo `.gitignore` | the skill's `.gitignore` |
+
+Replace `catalog/providers.yaml` with this repo's. In blocks and
+presets, replace `model: "{{ project.models.<tier> }}"` with
+`tier: <tier>`, and in escalation entries `provider`/`model` with
+`tier`. A repo that had changed a block's model or effort moves that
+choice into `config.yaml` `stages`.
 
 For installations created before per-worker lane limits were explicit,
 rename `limits.worker_tokens` to `limits.worker_context_tokens`. Use

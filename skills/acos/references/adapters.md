@@ -16,7 +16,7 @@ The orchestrator does the work itself in the current session.
   summary that shows it is describing something no runner can do. How
   deeply the stage works belongs in the block prompt, not in an effort
   field.
-- The session's startup load (`.acos.yaml` `startup.orchestrator`) was
+- The session's startup load (`config.yaml` `startup.orchestrator`) was
   spent before the first stage began. It belongs in the estimate, not in
   the stage record.
 - Tokens: not reported by the harness. Leave `tokens` out of the stage
@@ -36,12 +36,11 @@ Spawn one agent with the Agent tool.
 
 - `subagent_type`: `general-purpose` for implement, `Explore` for explore,
   `Plan` for plan, `general-purpose` for review. Use a project-defined
-  agent type instead if `.acos.yaml` names one under `agents.<block>`.
-- `model`: pass the stage model through the Agent tool `model` field when
-  the harness accepts it. Map catalog ids to the harness's short names
-  (`claude-opus-5` to `opus`, `claude-sonnet-5` to `sonnet`,
-  `claude-haiku-4-5` to `haiku`). If the harness cannot select that model,
-  log the model actually used.
+  agent type instead if `config.yaml` names one under `agents.<block>`.
+- `model`: pass the stage tier's alias from `catalog/providers.yaml`
+  (`opus`, `sonnet`, `haiku`) through the Agent tool `model` field when
+  the harness accepts it, never the manifest's concrete id. Log the id
+  that actually ran if the result reports it, otherwise the manifest's.
 - `effort`: state it in the prompt as a one-line instruction, e.g.
   "Effort: low. Minimal exploration, terse report." On `inherit` write
   no effort line: the agent runs at the harness default.
@@ -51,7 +50,7 @@ Spawn one agent with the Agent tool.
   output.
 - Tokens: log the total the Agent tool result reports, if any. Never an
   estimate.
-- Startup: a fresh agent pays its own harness load (`.acos.yaml`
+- Startup: a fresh agent pays its own harness load (`config.yaml`
   `startup.subagent`) before your prompt buys anything. The 150k floor
   in SKILL.md already contains it.
 - Each spawn counts against `limits.agents`. A retry is a new spawn.
@@ -96,7 +95,10 @@ folder. Load the `workflow-authoring` skill before writing the script.
 
 Run a shell command from the provider catalog.
 
-- Take `providers.<provider>.invoke.external`. Substitute `{{model}}` and
+- Take `providers.<provider>.invoke.external`. Substitute `{{alias}}`
+  with the stage tier's alias. When the tier is unmapped, drop
+  `{{alias}}` and the flag in front of it, so the CLI runs its default
+  model. Substitute
   `{{effort}}` (via the provider's `effort_map`). On `inherit`,
   `{{effort}}` becomes an empty string and the CLI runs at its default.
 - Pass the built prompt on stdin. Capture stdout as the stage output.

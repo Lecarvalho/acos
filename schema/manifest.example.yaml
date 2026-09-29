@@ -36,14 +36,15 @@ stages:
     on_fail: escalate         # the escalated retry runs as a subagent:
                               # a session cannot change its own model
     escalation:
-      - { provider: anthropic, model: claude-opus-5, effort: high }
+      - { provider: anthropic, tier: strong, model: claude-opus-5-5, effort: high }
     max_iterations: 3
 
   - name: review
     block: review
     adapter: external
     provider: openai
-    model: gpt-5
+    tier: strong
+    model: strong             # a Codex profile; the session cannot see its id
     effort: high
     inputs: [plan, diff]
     outputs: [review]
@@ -90,7 +91,7 @@ estimate:
     - { name: plan,      work_class: semantic, reserved_tokens: 15000 }
     - { name: implement, work_class: semantic, reserved_tokens: 35000 }
     - { name: review,    work_class: review, reserved_tokens: 200000 }
-  basis: "startup 40k from .acos.yaml, measured 2026-09-18; project calibration for inline work; review at its 200k reservation"
+  basis: "startup 40k from config.yaml, measured 2026-09-18; project calibration for inline work; review at its 200k reservation"
 
 outputs:
   run_dir: runs/2026-09-16-auth-token-refresh

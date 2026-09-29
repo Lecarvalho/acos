@@ -3,7 +3,7 @@ role: "Make the change described by the plan and get the verify command passing.
 default:
   adapter: inline
   # No effort inline; a delegated implementer (a fan-out slice) runs on
-  # {{ project.models.balanced }} at medium.
+  # the balanced tier at medium.
 inputs: [plan]
 # When the manifest has `design`, compose adds design-contract to inputs.
 outputs: [diff]

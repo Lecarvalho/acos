@@ -100,16 +100,20 @@
     "ModelRef": {
       "type": "object",
       "required": [
-        "provider",
-        "model"
+        "tier"
       ],
       "additionalProperties": false,
       "properties": {
         "provider": {
-          "type": "string"
+          "type": "string",
+          "description": "Catalog provider key. Defaults to the project provider."
+        },
+        "tier": {
+          "$ref": "#/$defs/Tier"
         },
         "model": {
-          "type": "string"
+          "type": "string",
+          "description": "Id the tier's alias resolves to at compose time, or the alias when the session cannot tell."
         },
         "effort": {
           "$ref": "#/$defs/Effort"
@@ -236,9 +240,13 @@
           "type": "string",
           "description": "Catalog provider key. Delegated stages only; must be absent when adapter is inline."
         },
+        "tier": {
+          "$ref": "#/$defs/Tier",
+          "description": "Role tier the adapter invokes through its alias. Delegated stages only; must be absent when adapter is inline."
+        },
         "model": {
           "type": "string",
-          "description": "Provider model id. Delegated stages only; must be absent when adapter is inline."
+          "description": "Id the tier's alias resolves to at compose time, written fresh by the orchestrator, or the alias itself when it cannot tell. Delegated stages only; must be absent when adapter is inline."
         },
         "effort": {
           "$ref": "#/$defs/Effort"
@@ -314,6 +322,11 @@
                 },
                 {
                   "required": [
+                    "tier"
+                  ]
+                },
+                {
+                  "required": [
                     "model"
                   ]
                 },
@@ -324,7 +337,7 @@
                 }
               ]
             },
-            "description": "An inline stage runs in the orchestrating session, whose provider, model and reasoning effort are fixed for the whole session. Delegate the stage, or run it in a session set up for it."
+            "description": "An inline stage runs in the orchestrating session, whose provider, tier, model and reasoning effort are fixed for the whole session. Delegate the stage, or run it in a session set up for it."
           }
         }
       ]
@@ -498,7 +511,7 @@
             "fallback",
             "project"
           ],
-          "description": "fallback when no applicable acos/calibration.md measurement exists; project when project calibration supplied the figures."
+          "description": "fallback when no applicable calibration.md measurement exists; project when project calibration supplied the figures."
         },
         "confidence": {
           "type": "string",
@@ -581,7 +594,7 @@
         "orchestrator_tokens": {
           "type": "integer",
           "minimum": 0,
-          "description": "Context the orchestrating session may spend, its startup load included. What is left for the work is this minus .acos.yaml startup.orchestrator."
+          "description": "Context the orchestrating session may spend, its startup load included. What is left for the work is this minus config.yaml startup.orchestrator."
         },
         "worker_context_tokens": {
           "type": "integer",
@@ -743,6 +756,16 @@
           "description": "Where the contract stage writes the numbered lines. Default runs/<id>/artifacts/design-contract.md."
         }
       }
+    },
+    "Tier": {
+      "type": "string",
+      "enum": [
+        "fast",
+        "balanced",
+        "strong",
+        "local"
+      ],
+      "description": "Role tier. The provider catalog maps it to an alias the runner resolves to its current release; installed files never name a model id."
     }
   }
 }

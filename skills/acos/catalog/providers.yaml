@@ -1,0 +1,96 @@
+# ACOS provider catalog.
+#
+# One entry per provider the orchestrator may route a stage to.
+#
+# No model ids. Ids change every few weeks; this file should not. Each
+# provider maps the role tiers blocks and presets ask for (`fast`,
+# `balanced`, `strong`, `local`) to an `alias`: the name its runner
+# resolves to its current release (`opus` is always the latest Opus). A
+# new release needs no edit here; a new model family does, once, upstream.
+#
+# The manifest is where a concrete id is written. At compose time the
+# orchestrator resolves each delegated stage's alias to the id the runner
+# uses today, as far as the session can tell, and records it in the
+# stage's `model`. The run log records the id that actually ran.
+#
+# A tier with no entry, or an alias of `null`, runs on the runner's own
+# default model: nothing is passed.
+#
+# `invoke` describes how each adapter reaches the provider from the
+# current harness. Values:
+#   native   - the harness can run this provider directly (session or subagent)
+#   <string> - a shell command template for the external adapter.
+#              The stage prompt is passed on stdin. {{alias}} and
+#              {{effort}} are substituted. Exit code 0 = ran; the
+#              stage check decides pass/fail separately.
+#   null     - not reachable through that adapter
+#
+# Effort. Each tier lists under `effort` the provider-agnostic levels it
+# can be set to; `effort_map` turns a level into the provider's setting.
+# A tier with no `effort` list accepts only `inherit`: it runs at
+# whatever its runner defaults to. `inherit` is also what a delegated
+# stage gets when it names no effort. It sets nothing: no prompt line,
+# no workflow option, and `{{effort}}` substitutes to an empty string.
+
+acos: "0.1"
+
+providers:
+
+  anthropic:
+    label: Anthropic (Claude)
+    invoke:
+      inline: native
+      subagent: native
+      workflow: native
+      external: "claude -p --model {{alias}}"
+    effort_map:            # provider-agnostic effort -> provider setting
+      low: low
+      medium: medium
+      high: high
+      max: max
+    tiers:
+      strong:   { alias: opus,   effort: [low, medium, high, max] }
+      balanced: { alias: sonnet, effort: [low, medium, high, max] }
+      fast:     { alias: haiku }   # no effort list: inherit only
+
+  openai:
+    label: OpenAI
+    invoke:
+      inline: null
+      subagent: null
+      workflow: null
+      # Codex has no floating model names, so tiers are Codex profiles.
+      # Define [profiles.strong] and [profiles.fast] once per machine in
+      # ~/.codex/config.toml; the model id lives there, not in any repo.
+      external: "codex exec --profile {{alias}}"
+    effort_map:
+      low: low
+      medium: medium
+      high: high
+      max: high
+    tiers:
+      strong: { alias: strong, effort: [low, medium, high, max] }
+      fast:   { alias: fast,   effort: [low, medium, high, max] }
+
+  google:
+    label: Google (Gemini)
+    invoke:
+      inline: null
+      subagent: null
+      workflow: null
+      external: "gemini -m {{alias}} -p -"
+    # no effort_map and no tier effort lists: inherit only
+    tiers:
+      strong: { alias: pro }
+      fast:   { alias: flash }
+
+  ollama:
+    label: Ollama (local)
+    invoke:
+      inline: null
+      subagent: null
+      workflow: null
+      external: "ollama run {{alias}}"
+    # no effort_map and no tier effort lists: inherit only
+    tiers:
+      local: { alias: qwen3-coder }   # a local model tag you have pulled

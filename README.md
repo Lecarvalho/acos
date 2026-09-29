@@ -34,7 +34,7 @@ intent -> size -> manifest -> GO? -> stage 1 -> check -> ... -> report + run log
 too big:  intent -> size -> cut OK? -> plan: manifest 1..n on disk  -> session per part:
                                                                      /acos run <plan> <i>
 
-later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
+later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
 ```
 
 ## What is in this repo
@@ -44,18 +44,20 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
 | `SPEC.md` | The schema semantics: vocabulary, lifecycle, fields, adapters, catalog. |
 | `schema/acos.schema.json` | JSON Schema (2020-12) for a manifest. |
 | `schema/manifest.example.yaml` | A complete manifest. |
-| `acos/catalog/providers.yaml` | Providers, models, rough prices, how to invoke them. |
-| `acos/catalog/blocks/` | Reusable stage definitions: explore, plan, contract, implement, evidence, review, verify. |
-| `acos/presets/` | Optional starting pipelines: `solo`, `plan-build-review`, `fan-out`. Runs compose ad hoc from blocks by default; `/acos save-preset` promotes a good run into a preset. |
-| `acos/calibration.md` | Not shipped. Written per project by `/acos calibrate` from past runs; read at compose time. |
-| `skills/acos/` | The orchestrator skill for Claude Code, plus adapter notes. |
+| `skills/acos/` | The skill: everything a project installs, as one folder. |
+| `skills/acos/SKILL.md`, `references/` | The orchestrator procedure, plus adapter notes. |
+| `skills/acos/catalog/providers.yaml` | Providers: tier-to-alias mapping (`strong: opus`), effort levels, how to invoke them. No model ids. |
+| `skills/acos/catalog/blocks/` | Reusable stage definitions: explore, plan, contract, implement, evidence, review, verify. |
+| `skills/acos/presets/` | Optional starting pipelines: `solo`, `plan-build-review`, `fan-out`. Runs compose ad hoc from blocks by default; `/acos save-preset` promotes a good run into a preset. |
+| `skills/acos/config.example.yaml` | Shape of a project's `config.yaml`, which `/acos init` writes into the installed skill folder. |
+| `calibration.md`, `runs/` | Not shipped. Written per project into the installed skill folder by `/acos calibrate` and by runs. |
+| `.claude/skills/acos/` | This repository's own install: a pointer to `skills/acos/`, plus its `config.yaml` and `runs/`. |
 | `skills/acos/scripts/shot.mjs` | Captures a cropped PNG of a running page with headless Chrome or Edge, so a part can show what it changed instead of describing it. Reuses Codex's bundled Playwright when present and otherwise uses dependency-free CDP. |
-| `.acos.example.yaml` | Project defaults template. |
 | `install.md` | How to drop this into a project. |
 
 ## Design choices
 
-- **The GO gate is mandatory.** Only a project's own `.acos.yaml` can set
+- **The GO gate is mandatory.** Only a project's own `config.yaml` can set
   it to `auto`. Presets cannot.
 - **Limits and estimates are advisory.** Per-context limits (orchestrator
   tokens, worker context tokens, files and lines), plus agents and stages,
@@ -68,7 +70,7 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
 - **One session per manifest.** A plan's parts are complete manifests
   meant for fresh sessions. The planning session often ends at the plan.
   Not a hard rule; small parts may run where they were planned.
-- **A session does not start at zero.** `.acos.yaml` records the startup
+- **A session does not start at zero.** `config.yaml` records the startup
   load — system prompt, tools, MCP servers, memory, skills — measured by
   `/acos init`. Sizing subtracts it before anything else, so the budget
   a part really has is the limit minus what the session already spent
@@ -106,17 +108,24 @@ later, own session:   /acos calibrate  ->  acos/calibration.md  ->  next compose
   parts in different subtrees may run in separate sessions at once.
 - **Scope is optional and advisory.** Hints, not a sandbox.
 - **Presets reference model tiers** (`fast`, `balanced`, `strong`), not
-  model ids. Swap providers in `.acos.yaml` without touching presets.
+  model ids, and so does everything else installed. The catalog maps a
+  tier to an alias the runner keeps current (`opus`, `sonnet`), so a
+  model release changes no repo. Only the manifest names an id, written
+  fresh at compose time; the log records the one that ran. A repo picks
+  tier and effort per block in `config.yaml` `stages`.
 - **After GO, no re-approval.** Changes in flight are drift: applied
   and recorded in the run log. The user
   is asked again only on `on_fail: ask` or a gate.
 - **Calibration is a separate step.** `/acos calibrate` compares manifests
   with their run logs across runs and writes a short note the next
   compose reads. Runs stay small; learning happens between them.
-- **Nothing to hand-edit.** `/acos init` derives `.acos.yaml` from the
+- **Nothing to hand-edit.** `/acos init` derives `config.yaml` from the
   repo. Presets grow out of real runs, not templates.
-- **Installed files cite only installed paths.** `skills/acos/` and
-  `acos/` are copied into other repositories; `SPEC.md`, `schema/` and
+- **One folder per project.** A project's ACOS files — skill, catalog,
+  presets, config, calibration, runs — all sit in its skill folder
+  (`.claude/skills/acos/`). Nothing lands at the repo root.
+- **Installed files cite only installed paths.** `skills/acos/` is
+  copied into other repositories; `SPEC.md`, `schema/` and
   `install.md` stay here. A pointer from a copied file to one of them
   names something the reader cannot open, so the copied files carry the
   shape they need inline and cite nothing outside themselves.

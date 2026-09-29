@@ -44,14 +44,14 @@ delegates to subagents of the same provider, or calls external models.
 | **Adapter** | How a stage is executed: `inline`, `subagent`, `workflow`, or `external`. |
 | **Preset** | A named, ordered set of blocks plus loop and gate defaults. Optional. |
 | **Catalog** | The project's collection of providers, blocks, and presets. |
-| **Limits** | Project-level ceilings: orchestrator context, each worker context, optional aggregate worker volume, agents and stages. Set in `.acos.yaml`. |
+| **Limits** | Project-level ceilings: orchestrator context, each worker context, optional aggregate worker volume, agents and stages. Set in `config.yaml`. |
 | **Manifest** | The composed, per-run document. Approved at GO. The *planned* manifest. |
 | **Plan** | An ordered set of manifests that together complete one intent too big for a single session. Each manifest is a part, sized to the limits, meant to run in its own session. |
 | **Part** | One manifest inside a plan. Carries its index, what it assumes done before it, and which parts it waits for. Parts that wait for none of each other may run in parallel sessions. |
 | **Slice** | A set of files one implementer owns for the length of a stage. Slices in one part are disjoint, so their stages can run at the same time. |
 | **Fan-out** | A part whose orchestrator plans once, then hands each slice to its own worker in parallel and verifies the merged tree. The only shape in which delegation saves time. |
 | **Vertical cut** | A part or slice that carries one capability through every layer it touches, so a file has exactly one owner in the whole plan. Its opposite, one layer per part, makes every later part re-read what an earlier part already read. |
-| **Startup load** | What a session or a worker holds before it reads a line of the repo: system prompt, tool schemas, MCP servers, project memory, skill descriptions. Measured once by `init` into `.acos.yaml`, and the floor every estimate starts from. |
+| **Startup load** | What a session or a worker holds before it reads a line of the repo: system prompt, tool schemas, MCP servers, project memory, skill descriptions. Measured once by `init` into `config.yaml`, and the floor every estimate starts from. |
 | **Drift** | Any difference between the planned manifest and what ran: a stage added, dropped, or re-ordered, a model or effort changed, a check changed. Logged, never re-approved. |
 | **Run log** | `runs/<run-id>/log.yaml`: what ran, stage by stage, with check results, drift and actual counts. With the manifest it is the whole record of a run. |
 | **Calibration** | A project-level note, derived from past runs, that says how this repo tends to behave. Read at compose time. |
@@ -83,7 +83,7 @@ drifts to whatever the limit allows.
 
 **Nothing starts at zero.** A session holds its harness before it reads
 a line of the repo: system prompt, tool schemas, MCP servers, project
-memory, skill descriptions. `.acos.yaml` records that startup load
+memory, skill descriptions. `config.yaml` records that startup load
 (section 6), measured once by `init`. What a part may spend on the work
 is `limits.orchestrator_tokens` minus `startup.orchestrator`, and a
 delegated stage's floor starts at `startup.subagent`. An estimate that
@@ -184,9 +184,9 @@ task, the limits and the user.
 
 The orchestrator:
 
-- Reads project defaults (`.acos.yaml`) and calibration notes
-  (`acos/calibration.md`), both optional.
-- Reads the catalog (`acos/catalog/`) and presets (`acos/presets/`).
+- Reads project defaults (`config.yaml`) and calibration notes
+  (`calibration.md`), both optional.
+- Reads the catalog (`catalog/`) and presets (`presets/`).
 - Summarises intent in one or two sentences. If intent is ambiguous in a way
   that changes the manifest, asks **one** clarifying question, then proceeds.
 - Composes the fewest stages that reach the intent. `implement` alone is a
@@ -390,7 +390,7 @@ names the next part to run when there is one.
 
 `calibrate` is run on its own, not inside a work session. It reads the
 manifests, run logs and plan files under `runs/`, compares them, and
-writes `acos/calibration.md`: a short, human-readable note on how this
+writes `calibration.md`: a short, human-readable note on how this
 repo behaves. Compose reads it as a prior. Section 7 describes the file.
 Token counts missing from the logs come from a usage observer when one
 can report on the recorded sessions and stage times; otherwise they stay
@@ -415,7 +415,7 @@ scope: Scope           # optional
 stages: [Stage]        # required, at least one
 loop: Loop             # optional, manifest-level defaults
 gates: Gates           # optional
-limits: Limits         # optional; copied from .acos.yaml, may be overridden per run
+limits: Limits         # optional; copied from config.yaml, may be overridden per run
 estimate: Estimate     # optional, conservative compose-time reservation
 design: Design         # optional; present when the work follows a design
 outputs: Outputs       # optional
@@ -468,7 +468,11 @@ scope:
   adapter: inline | subagent | workflow | external
   provider: string          # catalog provider key, e.g. anthropic, openai, ollama
                             # delegated stages only
-  model: string             # provider model id; delegated stages only
+  tier: fast | balanced | strong | local   # delegated stages only; what the
+                            # adapter invokes, through the tier's alias
+  model: string             # the id the alias resolves to at compose time, or
+                            # the alias itself when the session cannot tell;
+                            # delegated stages only
   effort: low | medium | high | max | inherit   # delegated stages only; adapters
                             # map it. Absent means inherit.
   inputs: [string]          # names of prior stage outputs this stage reads
@@ -483,15 +487,22 @@ scope:
   prompt: string            # optional extra instructions for the worker
 ```
 
-`ModelRef` is `{provider, model, effort?}`.
+`ModelRef` is `{provider?, tier, model?, effort?}`.
+
+Blocks, presets and project defaults name tiers only. The manifest is
+the one place a concrete model id appears: the orchestrator writes it
+fresh at compose time, from what its harness says each alias currently
+points to, so a manifest reads exactly while the installed files never
+go stale. Adapters invoke by alias; the run log records the id that
+ran.
 
 `effort` defaults to `inherit`. An inherited effort sets nothing: the
 worker runs at whatever its runner defaults to (a subagent at the
 harness's, an external CLI at its own). Any other level must be one the
-model lists under `effort` in the provider catalog (section 5.1); a
-level the model does not list is a compose error.
+tier lists under `effort` in the provider catalog (section 5.1); a
+level the tier does not list is a compose error.
 
-`provider`, `model` and `effort` belong to a delegated stage. An inline
+`provider`, `tier`, `model` and `effort` belong to a delegated stage. An inline
 stage carries none of them: it runs in the session that is executing the
 manifest, whose model and reasoning effort are fixed for the whole
 session and which no stage can change. A manifest that gives its inline
@@ -679,15 +690,19 @@ cheaper than the fresh session a second part would need.
 ## 5. Catalog
 
 The catalog is the project-local source of truth the orchestrator composes
-from.
+from. Every ACOS file in a project lives in the installed skill folder
+(`.claude/skills/acos/` in Claude Code); nothing sits at the repo root.
 
 ```
-acos/
+<skill folder>/
+  SKILL.md, references/, scripts/   # the procedure
   catalog/
-    providers.yaml    # provider -> models, rough prices, invoke method
+    providers.yaml    # provider -> tier aliases, effort, invoke method
     blocks/*.yaml     # one block per file
   presets/*.yaml      # one preset per file
+  config.yaml         # project defaults, written by init (section 6)
   calibration.md      # written by calibrate, read by compose. Optional.
+  runs/               # manifests, plans, logs, artifacts
 ```
 
 ### 5.1 Provider entry
@@ -700,16 +715,21 @@ anthropic:
   effort_map:                 # provider-agnostic level -> provider setting
     low: low
     high: high
-  models:
-    claude-sonnet-5:
-      price: { input_per_mtok: 3.00, output_per_mtok: 15.00 }   # optional
-      effort: [low, medium, high, max]   # levels a stage may set
-    claude-haiku-4-5: {}      # no effort list: inherit only
+  tiers:
+    strong:   { alias: opus,   effort: [low, medium, high, max] }
+    balanced: { alias: sonnet, effort: [low, medium, high, max] }
+    fast:     { alias: haiku }  # no effort list: inherit only
 ```
 
-A model's `effort` list names the levels a delegated stage may set on
+No model ids. Each tier maps to an `alias` the provider's runner
+resolves to its current release, so a new release changes nothing here
+and a new model family is one upstream edit. A tier the provider does
+not map, or an alias of `null`, runs on the runner's default. The file
+is upstream's: installs re-copy it rather than editing it.
+
+A tier's `effort` list names the levels a delegated stage may set on
 it; the provider's `effort_map` turns each into the provider's own
-setting. A model with no list accepts only `inherit`, which is also what
+setting. A tier with no list accepts only `inherit`, which is also what
 a stage gets when it names no effort.
 
 ### 5.2 Block
@@ -738,25 +758,24 @@ description: "Planner, implementer, reviewer as three stages."
 stages:
   - { block: plan,      adapter: inline }
   - { block: implement, adapter: inline,
-      on_fail: escalate, escalation: [{ provider: anthropic, model: claude-opus-5 }] }
+      on_fail: escalate, escalation: [{ tier: strong }] }
   - { block: review,    adapter: subagent, effort: high }
 loop: { max_iterations: 3, on_fail: retry }
 ```
 
 Presets refer to blocks by name and override only what differs. Provider and
-model may be left out; the orchestrator fills them from `.acos.yaml` defaults.
+tier may be left out; the orchestrator fills the provider from `config.yaml`
+and the tier from the block default or `config.yaml` `stages`.
 
 ---
 
-## 6. Project defaults (`.acos.yaml`, optional)
+## 6. Project defaults (`config.yaml`, optional)
 
 ```yaml
 acos: "0.1"
-provider: anthropic
-models:
-  fast: claude-haiku-4-5
-  balanced: claude-sonnet-5
-  strong: claude-opus-5
+provider: anthropic           # tiers resolve through catalog/providers.yaml
+stages:                       # optional, per block, only where the repo differs
+  review: { tier: strong, effort: high }
 verify: "npm test"
 shot: "node .claude/skills/acos/scripts/shot.mjs"
 gates: { go: required }
@@ -774,9 +793,12 @@ limits:
 ```
 
 Catalog files may reference these values with `{{ project.<path> }}`
-placeholders (for example `{{ project.verify }}` or
-`{{ project.models.strong }}`). The orchestrator substitutes them at compose
-time. A placeholder with no value is a compose error, reported before GO.
+placeholders (for example `{{ project.verify }}`). The orchestrator
+substitutes them at compose time.
+
+`stages` is how a repo decides which tier and effort a block gets when
+it runs delegated, without copying blocks or naming ids. It overrides
+block and preset defaults; a user request overrides it. A placeholder with no value is a compose error, reported before GO.
 
 `shot` is the capture command the `evidence` block calls; a project whose
 interface is not a web page points it at its own, and one with no visible
@@ -802,7 +824,7 @@ startup default for the documented ordinary two-file inline shape.
 
 ---
 
-## 7. Calibration (`acos/calibration.md`, optional)
+## 7. Calibration (`calibration.md`, optional)
 
 Written by `calibrate`, overwritten each time, meant to be read by a human
 and by the orchestrator at compose time. Short: under about 40 lines.
@@ -835,10 +857,10 @@ Based on 6 runs, 2026-09-10 to 2026-09-16. Last calibrated 2026-09-16.
 
 ## Recurring drift
 - verify command extended with `pnpm typecheck` in 3 runs. Consider
-  changing `.acos.yaml` verify.
+  changing `config.yaml` verify.
 - explore stage dropped every time it was planned.
 - every part since 2026-09-14 ran about 30k over its orchestrator
-  estimate, by the same amount: `.acos.yaml` `startup` predates the two
+  estimate, by the same amount: `config.yaml` `startup` predates the two
   MCP servers added that week. Re-run `/acos init`.
 
 ## Notes
