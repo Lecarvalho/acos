@@ -261,9 +261,10 @@
         "outputs": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^(?!.*(?:[Rr][Ee][Pp][Oo][Rr][Tt]|[Ss][Uu][Mm][Mm][Aa][Rr][Yy]|[Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]|[Aa][Nn][Aa][Ll][Yy][Ss][Ii][Ss])).+$"
           },
-          "description": "Names of artifacts this stage produces."
+          "description": "Names of artifacts this stage produces. Never report, summary, findings or analysis: Claude Code refuses subagent writes of such files."
         },
         "owns": {
           "type": "array",

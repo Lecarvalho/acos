@@ -238,6 +238,11 @@ human-authored choice, never a preset default.
   another context reads it: a delegated stage takes it as input, a gate
   shows it, or a later part needs it. Output passed between inline stages
   stays in the orchestrator's context, and `git diff` is the diff.
+  The stage that produces an artifact writes it, a delegated stage
+  included, and returns a short status with the path, so artifact
+  contents do not pass through the orchestrator twice. Output and
+  artifact names never contain `report`, `summary`, `findings` or
+  `analysis`: Claude Code refuses subagent writes of such files.
 - When the plan turns out wrong, the orchestrator changes course and keeps
   going. The change is a **drift** entry in the log (2.7). It does not
   stop for approval.
