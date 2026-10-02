@@ -16,9 +16,8 @@ Size in things you can count, then derive tokens from them.
 - A wide or unknown area: delegate the count to a read-only worker on
   the `fast` tier, so the answer comes back as a page of paths and your
   budget survives sizing. It locates; it does not read files end to end.
-- The counts are inputs, never limits. What one context (an inline
-  part, or one slice) holds is decided by its token reservation (§2)
-  against its limit, not by a number of files, lines or deliverables.
+- What one context (an inline part, or one slice) holds is decided by
+  its token reservation (§2) against its limit.
 
 ## 2. Reserve context
 
@@ -89,10 +88,8 @@ without losing your own context, because you are there until the end.
   (`estimate.orchestrator` in `plan.yaml`; parts after the first carry
   `startup_tokens: 0`). Over the limit: fewer and larger parts, or
   recommend another mode. Never start a plan you cannot finish.
-- A wave is as wide as the disjoint groups allow; how many workers run
-  at once is yours to judge (the feature, the models, what the session
-  can coordinate) and the user's to change at the cut. `sessions: 1`,
-  no handoff files between
+- A wave is as wide as the disjoint groups allow. `sessions: 1`, no
+  handoff files between
   parts, verify on the merged tree after each wave, review and evidence
   once at the end.
 
@@ -109,7 +106,7 @@ requests cannot conflict.
   runs alone first, or to one that runs last and wires the rest. Never
   to two parts of the same wave.
 - Sessions share one worktree: `worktree: shared` on the part. Each
-  writes only its `owns`, verifies with a command scoped to what it
+  works freely inside its `owns` and writes nothing outside, verifies with a command scoped to what it
   owns while the others are mid-edit, and the full verify runs once on
   the merged tree in the last part. One worktree is one branch; the
   user splits commits or pull requests by `owns`.
@@ -149,7 +146,9 @@ hard rule, but every exception is tokens spent for nothing.
 
 1. Group files by the capability they serve: the route, store, view and
    test of one behaviour are one part. Each file gets one owner, listed
-   in the part's `owns` in `plan.yaml`. A truly shared file goes to the
+   in the part's `owns` in `plan.yaml`. `owns` is a perimeter: name
+   directories where the group is a module, so a file nobody planned
+   still has exactly one owner. A truly shared file goes to the
    earliest part that needs it and is named in the later part's
    `assumes`. A file under three or more parts means a layer cut:
    regroup.
@@ -174,11 +173,6 @@ hard rule, but every exception is tokens spent for nothing.
 - **Does not fit one session**, or the mode is `single` or `parallel`:
   parts, each leaving the tree working (tests pass, nothing
   half-wired).
-
-Nothing caps files, lines, parts per plan, stages per part or agents.
-They come out of the counts, the per-context token limits and your
-judgement of this feature, session and models; the
-user sees them in the cut and changes them there.
 
 Confirm the cut before writing anything:
 

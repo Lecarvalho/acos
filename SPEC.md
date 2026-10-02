@@ -103,15 +103,14 @@ in the plan (section 8) and in each part (section 3.2).
   so its lane (one startup plus every part's brief and coordination)
   must fit `limits.orchestrator_tokens` for the plan as a whole, and it
   reads verdicts rather than the files, diffs and artifacts of its
-  workers. How many run at once is the orchestrator's judgement,
-  shown in the cut for the user to change.
+  workers.
 - `sequential`: a fresh session per part, one after the other. Each
   part fits alone and hands off to the next.
 - `parallel`: sessions at the same time. Parts that run together share
   no file, shared registries, lockfiles and generated files included,
   so their pull requests cannot conflict; such a file goes to a part
   that runs alone first or last. Sessions share one worktree, each
-  writing only its `owns` and verifying what it owns; the full verify
+  free inside its `owns`, writing nothing outside, and verifying what it owns; the full verify
   runs once on the merged tree. A worktree of its own is the exception
   and the plan states why the part could not share.
 
@@ -150,10 +149,7 @@ session, and a new part only when the work has a real dependency, or the
 session could not verify the merged tree, or the slices together would
 outgrow what one session can hold at once.
 
-**Slices and fan-out.** What one implementer holds is bounded by its
-context reservation, not by a number of files or lines, and a session
-running three slices touches three implementers' worth.
-When the counted files fall into two or more groups that share no file, and each
+**Slices and fan-out.** When the counted files fall into two or more groups that share no file, and each
 group is worth an implementer's startup, the
 orchestrator may compose one part with a slice per group instead of a part
 per group: one inline `plan` stage writes a brief per slice from the
@@ -524,7 +520,8 @@ scope:
                             # map it. Absent means inherit.
   inputs: [string]          # names of prior stage outputs this stage reads
   outputs: [string]         # names this stage produces
-  owns: [string]            # files or directories only this stage writes; required
+  owns: [string]            # the stage's perimeter: files or directories only it writes,
+                            # and the only ones it writes while others run; required
                             # on a delegated stage that runs alongside another
   check: Check              # optional
   on_fail: retry | escalate | ask | stop
@@ -603,10 +600,7 @@ limits:
   currency: USD
 ```
 
-All fields optional. Missing fields are unlimited. There is no limit on
-files, lines, parts in a plan, stages in a part or agents: they
-depend on the feature, the session and the models, so the orchestrator
-proposes them and the user decides at the cut and at GO.
+All fields optional. Missing fields are unlimited.
 
 ### 3.9 Estimate and actual (optional)
 
@@ -857,8 +851,7 @@ a session and 25000 for a worker and says so in the estimate basis.
 `limits` is the contract the user cares about most: it is what turns a
 large intent into a plan of parts. When absent,
 the orchestrator uses its own judgement and says so in the estimate basis.
-Files and lines are counted to derive reservations and are never
-limits themselves. `worker_context_tokens` is per worker.
+`worker_context_tokens` is per worker.
 Only `worker_tokens_total`, when present, caps the aggregate worker volume.
 The shipped 120k orchestrator ceiling leaves enough room after the 40k
 startup default for the documented ordinary two-file inline shape.

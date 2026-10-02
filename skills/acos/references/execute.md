@@ -18,9 +18,11 @@ Code: `claude:` + `CLAUDE_CODE_SESSION_ID`; Codex: `codex:` +
   the first part not `done`.
 - `sequential`: one part, then stop.
 - `parallel`, `worktree: shared`: other sessions are editing this tree
-  now. Write only inside the part's `owns`; restrict `git status` and
-  `git diff` to those paths; a change outside them is another session's
-  and is never fixed, reverted or reported as yours. Run the part's
+  now. The part's `owns` is its perimeter: change anything inside it,
+  planned or not; write nothing outside it, owned by another part or by
+  nobody, and put what is needed there in the handoff for the part that
+  owns it or the last part. A change you did not make is another
+  session's: never fixed, reverted or reported as yours. Run the part's
   scoped check, not the full verify, unless this is the last part.
 
 ## Each stage
@@ -29,10 +31,14 @@ Code: `claude:` + `CLAUDE_CODE_SESSION_ID`; Codex: `codex:` +
 2. **Prompt.** Block `prompt` + stage `prompt` + intent + scope notes +
    every named input. Inline: it is your own instruction. A fan-out
    implementer gets only its brief (its `## <stage>` section of the
-   plan), its `owns`, and the interfaces the brief names.
+   plan), its `owns`, the interfaces the brief names, and whether other
+   agents run at the same time. Its `owns` is then its perimeter: free
+   inside, nothing written outside.
 3. **Run** through the adapter (`adapters.md`). `∥` stages are spawned in
-   one message and awaited together. Write the handoff while evidence
-   runs.
+   one message and awaited together. When they return, apply the
+   changes they asked for outside their perimeters: yourself when
+   small, otherwise in the next wave's briefs. Write the handoff while
+   evidence runs.
 4. **Artifacts.** Write an output to `runs/<id>/artifacts/<name>.md` only
    when another context reads it (a delegated stage, a gate, a later
    part). Between inline stages it stays in your context; `git diff` is

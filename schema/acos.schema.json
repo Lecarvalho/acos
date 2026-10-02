@@ -579,7 +579,7 @@
     },
     "Limits": {
       "type": "object",
-      "description": "Advisory ceilings for one run. Act at compose time only: split large intents into a plan. Files, lines, parts, stages and agents are not limited. Not checked mid-run; calibrate compares them with actual afterwards.",
+      "description": "Advisory ceilings for one run. Act at compose time only: split large intents into a plan. Not checked mid-run; calibrate compares them with actual afterwards.",
       "additionalProperties": false,
       "properties": {
         "orchestrator_tokens": {

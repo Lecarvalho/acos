@@ -19,8 +19,7 @@ Never overwrite an existing `config.yaml` without asking. Shape:
    each tier maps to.
 4. **Defaults.** No `preset`. `gates.go: required`. `limits`:
    `orchestrator_tokens: 120000`, `worker_context_tokens: 300000`,
-   unless the user gave others. Never a cap on files, lines, parts,
-   stages or agents.
+   unless the user gave others.
 5. **startup**, what a session holds before reading any code:
    - Measured: ask the user to run `/context` (or the harness's
      equivalent) in a fresh session and paste the total and breakdown.

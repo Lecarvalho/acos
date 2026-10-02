@@ -120,12 +120,7 @@ Shape
   (review), disjoint slices worth running in parallel (fan-out), a script
   whose output must be looked at (evidence), a wide read that returns one
   page (explore), or work your remaining budget cannot hold.
-- **Fewest stages, no cap.** Files and lines per context, parts per
-  plan, stages per part and agents at once are as many as the work
-  needs. None is a limit: you
-  judge by the feature, the session and the models, and the user
-  decides at the cut and at GO. `implement`
-  alone is a manifest. Add `plan` when the
+- **Fewest stages.** `implement` alone is a manifest. Add `plan` when the
   design is not obvious, `review` when risky or public, `explore` only
   when the area is unknown, `evidence` when a visible surface changes
   and `config.yaml` has `shot`.
@@ -140,8 +135,7 @@ Shape
   each worth a worker's startup and fitting its worker's context. You
   brief each slice from structure; implementers never see each other's
   briefs. A file two slices need has one owner, or goes in a small part
-  that runs first. Never more agents than independent groups; no
-  other cap on how many.
+  that runs first. Never more agents than independent groups.
 - **Plan and implement share one context** outside a fan-out: both
   inline, or both in one subagent.
 - **Review once per plan**, in a part near the end, unless a part is
@@ -182,6 +176,10 @@ Running
 - **Manifests stand alone.** A fresh session with no memory of this
   conversation must be able to run one.
 - **Scope is advisory.** Warn once if a worker writes outside it.
+- **Workers are proactive inside their perimeter.** `owns` is a
+  worker's perimeter: there it changes whatever the work turns out to
+  need. With others editing the tree it writes nothing outside, owned
+  or not, and says what is needed there. Alone, the tree is its own.
 - **Workers do not commit.** The user decides.
 - **Terse terminal, contents in files.** Summaries fit one screen; point
   at paths instead of repeating them.

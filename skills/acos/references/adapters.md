@@ -66,7 +66,9 @@ right shape.
 
 Fan-out brief: an implementer receives its own `## <stage name>` section
 of `artifacts/plan.md`, its `owns` list, the intent, the scope notes and
-the verify command. Not the other sections. The brief is written from
+the verify command. Not the other sections. It is told that other
+agents run at the same time, which makes `owns` its perimeter: free
+inside, nothing written outside. The brief is written from
 structure: the implementer is the first and only context to open its
 files, and what it needs from a file it does not own arrives as a
 signature in the brief. Its report ends with the

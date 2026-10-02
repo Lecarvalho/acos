@@ -67,9 +67,7 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
   it to `auto`. Presets cannot.
 - **Limits and estimates are advisory.** Per-context token limits (orchestrator
   and worker context) shape the manifest and split big tasks into a
-  plan at compose time. Files, lines, parts, stages and agents are
-  counted and shown, never capped: the orchestrator proposes, the user
-  decides. An optional `worker_tokens_total` is the only
+  plan at compose time. An optional `worker_tokens_total` is the only
   aggregate worker ceiling. Compose-time reservations are conservative;
   measured actuals stay unknown until an adapter or usage observer reports them.
   Nothing checks them mid-run; `/acos calibrate` does, afterwards.
