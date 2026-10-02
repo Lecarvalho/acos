@@ -7,6 +7,22 @@ manifest id, `sessions` with this session's id when exposed (Claude
 Code: `claude:` + `CLAUDE_CODE_SESSION_ID`; Codex: `codex:` +
 `CODEX_THREAD_ID`), a start timestamp, `drift: []`.
 
+`part.mode` decides what surrounds the stages:
+
+- `single`: GO covered the whole plan. Run it wave by wave: spawn the
+  delegated stages of every part in the wave in one message, check
+  each, verify the merged tree, close those parts, start the next wave
+  without stopping or asking. One `log.yaml` per part, no handoff
+  between them. Keep from each worker its verdict and paths, nothing
+  else. A session that dies is resumed with `/acos run <plan>`, from
+  the first part not `done`.
+- `sequential`: one part, then stop.
+- `parallel`, `worktree: shared`: other sessions are editing this tree
+  now. Write only inside the part's `owns`; restrict `git status` and
+  `git diff` to those paths; a change outside them is another session's
+  and is never fixed, reverted or reported as yours. Run the part's
+  scoped check, not the full verify, unless this is the last part.
+
 ## Each stage
 
 1. **Gate.** `gate: true` or `gates.per_stage: true`: show the stage, ask.
@@ -38,7 +54,7 @@ Code: `claude:` + `CLAUDE_CODE_SESSION_ID`; Codex: `codex:` +
   (stage, else loop, else 3).
 - `escalate`: as retry, on the next `escalation` entry's tier and
   effort; the last entry repeats. From an inline stage the retry runs as
-  a subagent (log `adapter: subagent`, count it in `limits.agents`).
+  a subagent (log `adapter: subagent`).
 - `ask`: show the output; retry, skip or stop. Opt-in only: blocks and
   shipped presets never default to it.
 - `stop`: end the run as failed.
@@ -91,8 +107,8 @@ cause, later part's scope, order, ownership or acceptance target).
 3. **Handoff.** When later parts build on this one,
    `artifacts/handoff.md`, at most 40 lines: what they reuse, decisions
    not to undo, deferred findings with their owning part, verify result,
-   plan adjustments from discoveries. None outside a plan or for the
-   last part.
+   plan adjustments from discoveries. None outside a plan, in `single`
+   mode, or for the last part.
 4. **Evidence.** A part that changed a visible surface closes only with
    `artifacts/try-it.md` from the evidence stage: one captioned crop per
    claim, verdict `PASS`. Open a crop yourself only when the verdict names
@@ -111,6 +127,7 @@ cause, later part's scope, order, ownership or acceptance target).
    - drift, one line each
    - actual files, lines, agents against the estimate; tokens if reported
    - in a plan: parts done/total and the next command
-     (`/acos run runs/<plan-id> <i+1>`), or "plan complete"
+     (`/acos run runs/<plan-id> <i+1>`), or "plan complete"; in
+     `single`, one report at the end of the plan, not one per part
    - `git status --short`
    - paths worth opening: run dir, handoff, try-it page

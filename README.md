@@ -31,8 +31,10 @@ implement with a mid-tier model, review with a different provider.
 intent -> size -> manifest -> GO? -> stage 1 -> check -> ... -> report + run log
                   (summary)   (you)   (drift logged, not re-approved)
 
-too big:  intent -> size -> cut OK? -> plan: manifest 1..n on disk  -> session per part:
-                                                                     /acos run <plan> <i>
+too big:  intent -> size -> mode? -> cut OK? -> plan: manifest 1..n on disk
+          single: this session runs every part, workers in parallel waves
+          sequential: a session per part, /acos run <plan> <i>
+          parallel: sessions side by side on parts sharing no file
 
 later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
 ```
@@ -63,17 +65,24 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
   `agents/openai.yaml` `allow_implicit_invocation: false` for Codex.
 - **The GO gate is mandatory.** Only a project's own `config.yaml` can set
   it to `auto`. Presets cannot.
-- **Limits and estimates are advisory.** Per-context limits (orchestrator
-  tokens, worker context tokens, files and lines), plus agents and stages,
-  shape the manifest and split big tasks into a plan at
-  compose time. `files` and `lines` bound one context — an inline part or
-  one slice — not one session. An optional `worker_tokens_total` is the only
+- **Limits and estimates are advisory.** Per-context token limits (orchestrator
+  and worker context) shape the manifest and split big tasks into a
+  plan at compose time. Files, lines, parts, stages and agents are
+  counted and shown, never capped: the orchestrator proposes, the user
+  decides. An optional `worker_tokens_total` is the only
   aggregate worker ceiling. Compose-time reservations are conservative;
   measured actuals stay unknown until an adapter or usage observer reports them.
   Nothing checks them mid-run; `/acos calibrate` does, afterwards.
-- **One session per manifest.** A plan's parts are complete manifests
-  meant for fresh sessions. The planning session often ends at the plan.
-  Not a hard rule; small parts may run where they were planned.
+- **The user picks how a plan runs.** Before cutting, the orchestrator
+  asks: one session that orchestrates workers in parallel waves, a
+  fresh session per part in order, or sessions side by side on parts
+  that share no file (one worktree unless a part cannot share it). The
+  cut follows the answer. Every part is still a complete manifest.
+- **Whoever opens a file edits it.** A file read to plan and read again
+  to implement is paid twice. Plans and briefs come from structure, the
+  implementer is the first to open its files, and when a repo's
+  coupling makes that impossible the orchestrator says so instead of
+  paying it silently.
 - **A session does not start at zero.** `config.yaml` records the startup
   load — system prompt, tools, MCP servers, memory, skills — measured by
   `/acos init`. Sizing subtracts it before anything else, so the budget
@@ -97,19 +106,19 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
   step 3 at low. A stage that needs different ones is delegated.
 - **Fan-out when slices are disjoint.** Two or more groups of files that
   share nothing become one part: the orchestrator plans once and writes a
-  brief per slice, a balanced-tier implementer per slice runs in parallel
-  owning only its files, verify runs on the merged tree. The second read
-  is paid at the cheaper tier and never lands in the orchestrator's
-  context. One group stays inline, unless the orchestrator's remaining
+  brief per slice from structure, a balanced-tier implementer per slice
+  runs in parallel owning only its files, verify runs on the merged
+  tree. The files are read once, by their implementer, never in the
+  orchestrator's context. One group stays inline, unless the orchestrator's remaining
   budget cannot hold it.
 - **Tier by role.** Plan, brief and handoff on the session model;
-  explorers, implementers in a fan-out and the evidence worker on the
-  balanced tier;
+  explorers on the fast tier; implementers in a fan-out and the
+  evidence worker on the balanced tier;
   review on the strong tier; verify on none. Screenshots are captured and
   looked at by the evidence worker, so pixels never enter the
   orchestrator's context, and its verdict is a check the part must pass.
 - **Parts wait only for what they build on.** `after` orders a plan;
-  parts in different subtrees may run in separate sessions at once.
+  parts it does not link form a wave and run at the same time.
 - **Scope is optional and advisory.** Hints, not a sandbox.
 - **Presets reference model tiers** (`fast`, `balanced`, `strong`), not
   model ids, and so do blocks and project config. `providers.yaml` maps

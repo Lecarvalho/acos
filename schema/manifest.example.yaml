@@ -64,8 +64,6 @@ gates:
 limits:
   orchestrator_tokens: 120000
   worker_context_tokens: 300000
-  agents: 3
-  stages: 5
 
 estimate:
   files: 3

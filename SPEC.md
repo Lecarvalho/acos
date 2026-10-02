@@ -44,7 +44,7 @@ delegates to subagents of the same provider, or calls external models.
 | **Adapter** | How a stage is executed: `inline`, `subagent`, `workflow`, or `external`. |
 | **Preset** | A named, ordered set of blocks plus loop and gate defaults. Optional. |
 | **Catalog** | The project's collection of providers, blocks, and presets. |
-| **Limits** | Project-level ceilings: orchestrator context, each worker context, optional aggregate worker volume, agents and stages. Set in `config.yaml`. |
+| **Limits** | Project-level ceilings: orchestrator context, each worker context, and optional aggregate worker volume. Set in `config.yaml`. |
 | **Manifest** | The composed, per-run document. Approved at GO. The *planned* manifest. |
 | **Plan** | An ordered set of manifests that together complete one intent too big for a single session. Each manifest is a part, sized to the limits, meant to run in its own session. |
 | **Part** | One manifest inside a plan. Carries its index, what it assumes done before it, and which parts it waits for. Parts that wait for none of each other may run in parallel sessions. |
@@ -90,6 +90,45 @@ delegated stage's floor starts at `startup.subagent`. An estimate that
 ignores it is wrong by a fixed amount on every part, always in the same
 direction.
 
+**Run mode.** Work that needs more than one context can be run three
+ways, and the cut differs for each, so the orchestrator asks which
+before cutting unless the request already says. The answer is `mode`
+in the plan (section 8) and in each part (section 3.2).
+
+- `single`: one session runs the whole plan. The orchestrator
+  orchestrates more than it implements: every capability group is a
+  part with its own implementer, parts that build on nothing form a
+  wave and run at the same time, and the orchestrator keeps for itself
+  only edits cheaper than a delegation. It stays for the whole session,
+  so its lane (one startup plus every part's brief and coordination)
+  must fit `limits.orchestrator_tokens` for the plan as a whole, and it
+  reads verdicts rather than the files, diffs and artifacts of its
+  workers. How many run at once is the orchestrator's judgement,
+  shown in the cut for the user to change.
+- `sequential`: a fresh session per part, one after the other. Each
+  part fits alone and hands off to the next.
+- `parallel`: sessions at the same time. Parts that run together share
+  no file, shared registries, lockfiles and generated files included,
+  so their pull requests cannot conflict; such a file goes to a part
+  that runs alone first or last. Sessions share one worktree, each
+  writing only its `owns` and verifying what it owns; the full verify
+  runs once on the merged tree. A worktree of its own is the exception
+  and the plan states why the part could not share.
+
+**One reader per file.** Reading is the cost. A file opened to plan and
+opened again to implement is paid twice, so the context that opens a
+file is the one that edits it. The orchestrator cuts and briefs from
+structure (paths, names, imports, signatures found by search); a brief
+says what to achieve and which files are the worker's, and the worker
+is the first to read them. Where a plan cannot be written without the
+file's contents, plan and implement are one context. A worker that
+needs something from a file it does not own gets the signature in its
+brief. The cheap exception is a locate pass on the `fast` tier. This
+is a strong default, not a hard rule; when a repository's coupling or
+missing module boundaries force files open just to learn who changes
+what, the orchestrator says so in the cut and in the presentation,
+naming the area and the cause, rather than paying it silently.
+
 **Cut vertically.** Group the counted files so each file has exactly one
 owner in the plan, and cut along what the change does — a capability, a
 route, a screen, carried through every layer it touches — not along what
@@ -111,17 +150,17 @@ session, and a new part only when the work has a real dependency, or the
 session could not verify the merged tree, or the slices together would
 outgrow what one session can hold at once.
 
-**Slices and fan-out.** The limits on files and lines bound what one
-implementer holds in its head, not what one session may do: a session
-running three slices may legitimately touch three times `limits.files`.
+**Slices and fan-out.** What one implementer holds is bounded by its
+context reservation, not by a number of files or lines, and a session
+running three slices touches three implementers' worth.
 When the counted files fall into two or more groups that share no file, and each
-group is worth an implementer of its own (about three files or more), the
+group is worth an implementer's startup, the
 orchestrator may compose one part with a slice per group instead of a part
-per group: one inline `plan` stage reads the area once and writes a brief
-per slice; an `implement` stage per slice, delegated to a balanced-tier
+per group: one inline `plan` stage writes a brief per slice from the
+area's structure, without reading the files the slices own; an `implement` stage per slice, delegated to a balanced-tier
 model, runs in parallel with the others; one inline `verify` runs on the
-merged tree. Each slice must fit `limits.files` and `limits.lines` on its
-own; the number of slices is capped by `limits.agents`. A file two groups
+merged tree. Each slice must fit `limits.worker_context_tokens` on its
+own; the number of slices is the number of disjoint groups. A file two groups
 both need (a shared stylesheet, a types module) is owned by exactly one
 slice or moved into a small part that runs first. Fan-out is not taken for
 a single group: there the orchestrator implements inline, which is
@@ -129,17 +168,18 @@ cheaper and faster than one delegation — unless what remains of its
 budget after startup cannot hold that group, and then the group goes to
 one implementer rather than to a second part.
 
-**Order between parts.** A part names the parts it waits for. The default
-is the part before it, which keeps plans sequential. Parts in different
-subtrees that wait for none of each other may run at the same time in
-separate sessions; the plan says so, and the user decides whether to open
-a second terminal.
+**Order between parts.** A part names the parts it waits for. In
+`sequential` mode the default is the part before it. In `single` and
+`parallel` a part waits only for what it truly builds on, because every
+link removes it from a wave.
 
-A plan is made once and run part by part, each part in its own fresh
-session, in the order the plan allows. The planning session usually ends
-after the plan is shown. Nothing forces that: a small part may run in the same session, and
-a single manifest that fits may run right away. The orchestrator says
-which it recommends and why, in one line.
+A plan is made once and run in its mode: every part in the planning
+session (`single`), each part in its own fresh session in order
+(`sequential`), or the parts of a wave in sessions opened side by side
+(`parallel`). In `sequential` the planning session usually ends after
+the plan is shown; a small part may still run there, and a single
+manifest that fits may run right away. The orchestrator says which it
+recommends and why, in one line.
 
 Token reservations come from calibration notes when present, otherwise
 from the skill's conservative fallback floors. Every fallback estimate
@@ -433,7 +473,9 @@ part:
   plan: 2026-09-16-auth-hardening   # plan id; the plan file is runs/<plan>/plan.yaml
   index: 2
   of: 3
-  after: [1]                        # parts this one waits for; default: the part before it
+  mode: sequential                  # single | sequential | parallel (section 2.1)
+  worktree: shared                  # parallel only: shared (default) | own
+  after: [1]                        # parts this one waits for; sequential default: the part before it
   assumes: "Part 1 done: refresh-on-401 merged, tests in tests/auth/refresh.test.ts."
   evidence:                         # optional evidence deferral or final coverage
     deferred_to: 3
@@ -549,25 +591,22 @@ gates:
 ### 3.8 Limits (optional, advisory)
 
 Ceilings for one run. They act at compose time only: they turn a large
-intent into a plan of parts and cap delegation. Nothing checks them mid-run.
+intent into a plan of parts. Nothing checks them mid-run.
 `calibrate` reports how often runs outgrew them.
 
 ```yaml
 limits:
-  files: 8                      # created or edited per context (an inline part, or
-                                # one slice), tests included; a fan-out session
-                                # legitimately totals more
-  lines: 400                    # added plus removed, same per-context meaning
   orchestrator_tokens: 120000   # context the orchestrating session may spend
   worker_context_tokens: 300000 # each worker context may spend
   worker_tokens_total: 900000   # optional aggregate ceiling across workers
-  agents: 3                     # subagent, workflow agent or external calls per run
-  stages: 5
   cost: 5.00                    # optional, with currency
   currency: USD
 ```
 
-All fields optional. Missing fields are unlimited.
+All fields optional. Missing fields are unlimited. There is no limit on
+files, lines, parts in a plan, stages in a part or agents: they
+depend on the feature, the session and the models, so the orchestrator
+proposes them and the user decides at the cut and at GO.
 
 ### 3.9 Estimate and actual (optional)
 
@@ -791,12 +830,8 @@ startup:
   subagent: 25000             # what a fresh worker holds before its first read
   basis: "claude code /context, empty session, 2026-09-18"
 limits:
-  files: 8
-  lines: 400
   orchestrator_tokens: 120000
   worker_context_tokens: 300000
-  agents: 3
-  stages: 5
 ```
 
 Catalog files may reference these values with `{{ project.<path> }}`
@@ -820,11 +855,10 @@ re-run then. When the key is absent, the orchestrator assumes 40000 for
 a session and 25000 for a worker and says so in the estimate basis.
 
 `limits` is the contract the user cares about most: it is what turns a
-large intent into a plan of parts, and what caps delegation. When absent,
+large intent into a plan of parts. When absent,
 the orchestrator uses its own judgement and says so in the estimate basis.
-`limits.files` and `limits.lines` bound one context — an inline part or
-one slice of a fan-out — so a session running several slices may exceed
-them in total on purpose. `worker_context_tokens` is likewise per worker.
+Files and lines are counted to derive reservations and are never
+limits themselves. `worker_context_tokens` is per worker.
 Only `worker_tokens_total`, when present, caps the aggregate worker volume.
 The shipped 120k orchestrator ceiling leaves enough room after the 40k
 startup default for the documented ordinary two-file inline shape.
@@ -882,7 +916,7 @@ read them reliably. Content is free text.
 
 ## 8. Plan (`runs/<plan-id>/plan.yaml`)
 
-Written when an intent does not fit one session. The plan directory holds
+Written when an intent does not fit one context. The plan directory holds
 one subdirectory per part, each an ordinary run directory:
 
 ```
@@ -897,7 +931,8 @@ runs/2026-09-16-auth-hardening/
 acos: "0.1"
 id: 2026-09-16-auth-hardening
 intent: "Full auth hardening: silent refresh on 401, logout endpoint, session persistence."
-limits: { orchestrator_tokens: 120000, worker_context_tokens: 300000, agents: 3, stages: 5 }
+mode: sequential                    # single | sequential | parallel, asked before the cut
+limits: { orchestrator_tokens: 120000, worker_context_tokens: 300000 }
 parts:
   - index: 1
     dir: 1-refresh-on-401
@@ -967,7 +1002,12 @@ volume and is never compared with either per-context token ceiling.
 
 Every part's manifest is complete on its own: it can be attached to a
 work item and run months later in a session that knows nothing else. The
-plan file is the index and the running status. Parts run in the order
+plan file is the index and the running status. `mode` says how the
+parts run (section 2.1): in `single`, `sessions` is 1, the plan's
+`estimate.orchestrator` holds the session's lane and parts after the
+first carry no startup; in `parallel`, a part entry carries `worktree`
+and, when it is `own`, the reason. `double_reads` lists any area that
+had to be read to be cut, with its cause. Parts run in the order
 `after` allows; a part's manifest may state in `part.assumes` what it
 expects earlier parts to have left in the tree. A part with more than one
 slice is one session with several workers, and `sessions` counts it once.

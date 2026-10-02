@@ -33,10 +33,6 @@ startup:
   basis: "estimated 2026-09-18 from the loaded harness surface; no /context reading yet"
 
 limits:
-  files: 8                       # per context: an inline part, or one slice
-  lines: 400
   orchestrator_tokens: 120000
   worker_context_tokens: 300000 # per worker; omit worker_tokens_total when no
                                 # aggregate worker ceiling is wanted
-  agents: 3
-  stages: 5
