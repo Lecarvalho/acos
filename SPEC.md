@@ -30,7 +30,7 @@ The lifecycle is always the same:
    run logs and updates the project's calibration notes.
 
 This applies to every run, whether the orchestrator does the work itself,
-delegates to subagents of the same provider, or calls external models.
+delegates to subagents of the same harness, or calls external models.
 
 ---
 
@@ -692,6 +692,12 @@ Adapter semantics are defined by the runner, not by this spec. The spec only
 requires that every adapter accepts a stage definition and returns a stage
 record.
 
+Which adapters a stage may use depends on the harness the orchestrator
+runs in. A stage on that harness's own provider is `inline`, `subagent`
+or `workflow`, never `external`: calling the harness's own CLI opens a
+second session that pays its startup again and reports no usage. A stage
+on any other provider is `external` only.
+
 Delegation costs tokens twice: the worker's own context, and the
 orchestrator's prompt and result. The default is therefore `inline`, and a
 stage is delegated only when isolation, independence or parallelism buys
@@ -747,9 +753,10 @@ from. Every ACOS file in a project lives in the installed skill folder
 
 ```yaml
 anthropic:
+  harness: claude-code        # sessions of this harness run it themselves
   invoke:
-    subagent: native          # this harness can spawn it directly
-    external: "claude -p"     # or a CLI command template
+    subagent: native          # in that harness: spawned inside the session
+    external: "claude -p"     # from any other harness: a CLI command template
   effort_map:                 # provider-agnostic level -> provider setting
     low: low
     high: high
@@ -758,6 +765,11 @@ anthropic:
     balanced: { alias: sonnet, effort: [low, medium, high, max] }
     fast:     { alias: haiku }  # no effort list: inherit only
 ```
+
+`harness` names the harness whose sessions run the provider natively
+(`claude-code`, `codex`); a provider without one is reached only through
+`external`. `native` entries hold in that harness alone, and `external`
+holds in every other one (section 4).
 
 Each tier maps to an `alias`, a model family (`opus`, `sol`). A runner
 that resolves families itself gets it as is; for one that needs full

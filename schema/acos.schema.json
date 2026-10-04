@@ -73,7 +73,7 @@
         "workflow",
         "external"
       ],
-      "description": "How a stage is executed. inline: the orchestrator does it in-session. subagent: a subagent of the same harness. workflow: the harness workflow engine. external: a shell command or API call to another provider."
+      "description": "How a stage is executed. inline: the orchestrator does it in-session. subagent: a subagent of the same harness. workflow: the harness workflow engine. external: a shell command or API call to another provider, never to the provider of the harness the orchestrator runs in."
     },
     "Effort": {
       "type": "string",
