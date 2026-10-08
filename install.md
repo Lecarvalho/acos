@@ -114,6 +114,11 @@ part in its own session:
 /acos run runs/<plan-id> 1
 ```
 
+A part does not wait for a second `GO`. Its workers and slices in the
+plan are a suggestion: the session that runs the part reads what it
+needs, re-cuts its own work, prints the strategy and starts. Interrupt
+it to change course.
+
 `/acos plan <task>` stops before executing anything: it proposes the cut,
 writes the plan once you agree, and ends. That is the usual way to
 prepare work ahead of time or attach manifests to a ticket. A task small
@@ -150,3 +155,7 @@ For installations created before per-worker lane limits were explicit,
 rename `limits.worker_tokens` to `limits.worker_context_tokens`. Use
 `worker_tokens_total` only when the project intentionally wants an
 additional aggregate ceiling across all workers in one run.
+
+Installs whose `config.yaml` still has `worker_context_tokens: 300000`:
+lower it to `200000`. Slices now aim at about 170k per worker, and the
+ceiling is what keeps one worker from carrying a whole part.

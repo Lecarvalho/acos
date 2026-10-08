@@ -579,7 +579,7 @@
     },
     "Limits": {
       "type": "object",
-      "description": "Advisory ceilings for one run. Act at compose time only: split large intents into a plan. Not checked mid-run; calibrate compares them with actual afterwards.",
+      "description": "Advisory ceilings for one run. Applied whenever work is sized: at compose time they split large intents into a plan, and when a part starts they split its work into slices. Not checked mid-run; calibrate compares them with actual afterwards.",
       "additionalProperties": false,
       "properties": {
         "orchestrator_tokens": {
@@ -590,7 +590,7 @@
         "worker_context_tokens": {
           "type": "integer",
           "minimum": 0,
-          "description": "Per-worker context ceiling. Every worker reservation is compared with this value independently."
+          "description": "Per-worker context ceiling, 200000 as shipped. Every worker reservation is compared with this value independently; implementing workers are sized lower, at about 170k."
         },
         "worker_tokens_total": {
           "type": "integer",

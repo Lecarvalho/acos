@@ -34,5 +34,5 @@ startup:
 
 limits:
   orchestrator_tokens: 120000
-  worker_context_tokens: 300000 # per worker; omit worker_tokens_total when no
+  worker_context_tokens: 200000 # per worker; omit worker_tokens_total when no
                                 # aggregate worker ceiling is wanted

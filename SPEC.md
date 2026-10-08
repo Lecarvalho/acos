@@ -23,7 +23,10 @@ The lifecycle is always the same:
 4. It shows the manifest (or the plan) and waits for an explicit **GO**.
    Often the session ends here: the manifests are ready, and each runs
    later in its own fresh session.
-5. It executes one manifest, stage by stage. When the plan turns out wrong
+5. It executes one manifest, stage by stage. The orchestrator that runs
+   a part of a plan first settles its own strategy: the plan's workers
+   and slices are a suggestion, which it re-cuts, writes back into the
+   manifest and states before starting. When the plan turns out wrong
    it adjusts, logs the drift, and keeps going.
 6. It reports what ran and closes the run log.
 7. Later, in a separate session, `calibrate` compares manifests with their
@@ -45,18 +48,19 @@ delegates to subagents of the same harness, or calls external models.
 | **Preset** | A named, ordered set of blocks plus loop and gate defaults. Optional. |
 | **Catalog** | The project's collection of providers, blocks, and presets. |
 | **Limits** | Project-level ceilings: orchestrator context, each worker context, and optional aggregate worker volume. Set in `config.yaml`. |
-| **Manifest** | The composed, per-run document. Approved at GO. The *planned* manifest. |
+| **Manifest** | The composed, per-run document. Approved at GO, then kept current: the orchestrator that runs it rewrites it when its strategy changes. |
+| **Strategy** | How the orchestrator of a part will run it: slices, workers, briefs, order. A plan suggests one; the orchestrator settles it when the part starts, after reading what it needs and what earlier parts found. |
 | **Plan** | An ordered set of manifests that together complete one intent too big for a single session. Each manifest is a part, sized to the limits, meant to run in its own session. |
 | **Part** | One manifest inside a plan. Carries its index, what it assumes done before it, and which parts it waits for. Parts that wait for none of each other may run in parallel sessions. |
 | **Slice** | A set of files one implementer owns for the length of a stage. Slices in one part are disjoint, so their stages can run at the same time. |
 | **Fan-out** | A part whose orchestrator plans once, then hands each slice to its own worker in parallel and verifies the merged tree. The only shape in which delegation saves time. |
 | **Vertical cut** | A part or slice that carries one capability through every layer it touches, so a file has exactly one owner in the whole plan. Its opposite, one layer per part, makes every later part re-read what an earlier part already read. |
 | **Startup load** | What a session or a worker holds before it reads a line of the repo: system prompt, tool schemas, MCP servers, project memory, skill descriptions. Measured once by `init` into `config.yaml`, and the floor every estimate starts from. |
-| **Drift** | Any difference between the planned manifest and what ran: a stage added, dropped, or re-ordered, a model or effort changed, a check changed. Logged, never re-approved. |
+| **Drift** | Any change to a manifest after it was written: slices re-cut, a stage added, dropped, or re-ordered, a model or effort changed, a check changed. Applied to the manifest, logged, never re-approved. |
 | **Run log** | `runs/<run-id>/log.yaml`: what ran, stage by stage, with check results, drift and actual counts. With the manifest it is the whole record of a run. |
 | **Calibration** | A project-level note, derived from past runs, that says how this repo tends to behave. Read at compose time. |
 | **Loop** | The rule that decides whether to repeat, escalate, or stop after a stage fails its check. |
-| **Gate** | A point where execution pauses for a human decision. The GO gate is mandatory. |
+| **Gate** | A point where execution pauses for a human decision. The GO gate is mandatory for a manifest composed in the session; starting a written manifest is itself the GO. |
 
 ---
 
@@ -101,9 +105,9 @@ in the plan (section 8) and in each part (section 3.2).
   wave and run at the same time, and the orchestrator keeps for itself
   only edits cheaper than a delegation. It stays for the whole session,
   so its lane (one startup plus every part's brief and coordination)
-  must fit `limits.orchestrator_tokens` for the plan as a whole, and it
-  reads verdicts rather than the files, diffs and artifacts of its
-  workers.
+  must fit `limits.orchestrator_tokens` for the plan as a whole. It
+  reads what it needs to cut and brief, then verdicts rather than the
+  diffs and artifacts of its workers.
 - `sequential`: a fresh session per part, one after the other. Each
   part fits alone and hands off to the next.
 - `parallel`: sessions at the same time. Parts that run together share
@@ -114,19 +118,42 @@ in the plan (section 8) and in each part (section 3.2).
   runs once on the merged tree. A worktree of its own is the exception
   and the plan states why the part could not share.
 
-**One reader per file.** Reading is the cost. A file opened to plan and
-opened again to implement is paid twice, so the context that opens a
-file is the one that edits it. The orchestrator cuts and briefs from
-structure (paths, names, imports, signatures found by search); a brief
-says what to achieve and which files are the worker's, and the worker
-is the first to read them. Where a plan cannot be written without the
-file's contents, plan and implement are one context. A worker that
-needs something from a file it does not own gets the signature in its
-brief. The cheap exception is a locate pass on the `fast` tier. This
-is a strong default, not a hard rule; when a repository's coupling or
-missing module boundaries force files open just to learn who changes
-what, the orchestrator says so in the cut and in the presentation,
-naming the area and the cause, rather than paying it silently.
+**Reading.** Planning an execution means opening files, and that is
+the orchestrator's job: it reads what decides how the work splits and
+what a brief must say, and the reading counts in its lane. A brief
+written from the code carries the decisions, so the worker's job is
+close to mechanical and its run short. What is worth avoiding is two
+workers opening the same file: each file has one worker, and a worker
+that needs something from a file it does not own gets the signature in
+its brief. A habit, not a rule. At plan time, parts that run later are
+cut from structure (paths, names, imports, signatures found by
+search); they are read by whoever runs them.
+
+**The plan suggests; the part's orchestrator settles.** A planner that
+cuts a large intent cannot know exactly how many workers each part
+needs or which modules each one takes: it has not read the code, and
+earlier parts will change what later ones find. So a plan fixes the
+parts (intent, acceptance, `owns`, order) and only suggests the workers
+inside each. The orchestrator that runs a part settles its strategy
+when the part starts: it reads the discoveries and measured actuals of
+the parts before it, opens what it needs, re-cuts its own work,
+rewrites its manifest and says what it will do. It does not wait for
+approval and does not ask, even when the volume grew; the user
+challenges while it works. It may do so again mid-part when the work
+shows the strategy wrong.
+
+**Worker target.** A long run re-reads its whole context on every turn
+and leaves everything waiting on one agent. An implementing worker is
+sized at about 170k tokens and never planned past
+`limits.worker_context_tokens` (200k as shipped). How much work fits
+has no fixed per-file value: it is a balance of scope and cost that
+depends on the kind of work and the size of the files. A scripted
+change run through the shell over many files costs little; reading
+every file and taking a precise decision in each costs most. The
+orchestrator judges each worker, writes its figure as the reservation
+with the reasoning in `basis`, and cuts only when a cut is needed: work
+that would take one worker past the target becomes more slices, or gets
+a brief precise enough to cost less.
 
 **Cut vertically.** Group the counted files so each file has exactly one
 owner in the plan, and cut along what the change does — a capability, a
@@ -152,11 +179,12 @@ outgrow what one session can hold at once.
 **Slices and fan-out.** When the counted files fall into two or more groups that share no file, and each
 group is worth an implementer's startup, the
 orchestrator may compose one part with a slice per group instead of a part
-per group: one inline `plan` stage writes a brief per slice from the
-area's structure, without reading the files the slices own; an `implement` stage per slice, delegated to a balanced-tier
+per group: one inline `plan` stage writes a brief per slice; an `implement` stage per slice, delegated to a balanced-tier
 model, runs in parallel with the others; one inline `verify` runs on the
-merged tree. Each slice must fit `limits.worker_context_tokens` on its
-own; the number of slices is the number of disjoint groups. A file two groups
+merged tree. Each slice is sized near the worker target and must fit
+`limits.worker_context_tokens` on its own. A group too big for one
+worker is split at its thinnest seam, the interface across it fixed in
+both briefs, or its second worker runs after the first. A file two groups
 both need (a shared stylesheet, a types module) is owned by exactly one
 slice or moved into a small part that runs first. Fan-out is not taken for
 a single group: there the orchestrator implements inline, which is
@@ -187,7 +215,7 @@ Fit is checked per context lane; their sum is aggregate reserved volume,
 not a value to compare with either lane's limit. Within a plan,
 the measured-actual/reservation ratio of matching lanes and work classes
 in parts already run scales the parts still to run, and a part that no
-longer fits is re-cut before its GO. Parts whose
+longer fits is re-cut by its orchestrator when it starts. Parts whose
 estimates all sit just under a limit are a sign of fitting the guess to
 the limit; the orchestrator recounts and cuts further.
 
@@ -196,9 +224,8 @@ Fallback reservations use the stage's work class:
 | Work class | Fallback reservation |
 |------------|----------------------|
 | semantic, inline | 40k + 12k per touched file, plus orchestrator startup |
-| semantic, worker | 150k + 15k per touched file, worker startup included |
 | mechanical, inline | 8k + 2k per touched file, plus orchestrator startup |
-| mechanical, worker | worker startup + 10k + 3k per touched file |
+| implementing worker | the orchestrator's judgement, from worker startup up (Worker target, above) |
 | command | 0 model tokens; shell time is not model context |
 | evidence | 60k worker tokens |
 | review | 200k worker tokens |
@@ -258,10 +285,16 @@ This gate cannot be disabled by a preset. A project may set
 `gates.go: auto` for fully unattended runs, but that is a project-level,
 human-authored choice, never a preset default.
 
+A manifest already on disk, started by the user with a run command, does
+not wait again: the command is the GO. Its orchestrator settles the
+strategy (2.1), prints it and starts, and the user may interrupt.
+
 ### 2.5 Execute
 
 - The manifest is written to `runs/<run-id>/manifest.yaml` before the first
-  stage starts. It is never edited afterwards.
+  stage starts. Its orchestrator rewrites it in place whenever the
+  strategy changes, so the file always says what is running; each
+  rewrite has a drift entry (2.7).
 - Stages run in order. A stage's `adapter` decides how it runs. Consecutive
   delegated stages whose `inputs` do not name each other's `outputs` and
   whose `owns` lists share no path run at the same time; the summary marks
@@ -303,13 +336,17 @@ When `max_iterations` is exhausted the run ends and reports failure.
 
 ### 2.7 Drift
 
-Runs need adjusting in flight: a stage turns out unnecessary, a model
-should be swapped, a verify command was wrong, one more stage is needed.
-The orchestrator makes the change, appends a drift entry to the log, and
+Runs need adjusting in flight: the suggested slices do not match the
+code, a stage turns out unnecessary, a model should be swapped, a verify
+command was wrong, one more stage is needed. The orchestrator makes the
+change, rewrites the manifest, appends a drift entry to the log, and
 continues. Nothing is re-approved mid-run.
 
 ```yaml
 drift:
+  - at_stage: strategy
+    change: "stages[implement]: 1 worker, 30 files -> implement-a, -b, -c, 10 files each"
+    reason: "large files, a decision in each: one worker would run far past 200k; three near 150k along the module seams"
   - at_stage: implement
     change: "stages[review]: dropped"
     reason: "two-line change, orchestrator reviewed inline"
@@ -323,9 +360,9 @@ The orchestrator pauses for the user in exactly two cases:
 1. a stage's `on_fail` is `ask` and its check failed;
 2. `gates.per_stage` or a stage `gate` says so.
 
-Everything else, including retries, escalation, dropped stages, swapped
-models, changed checks and going past the reservation, is drift and goes to
-the log only. A running session cannot measure its own token use
+Everything else, including retries, escalation, re-cut slices, dropped
+stages, swapped models, changed checks and going past the reservation or
+the volume the plan suggested, is drift and goes to the log only. A running session cannot measure its own token use
 reliably, so limits are not checked mid-run. Whether a run outgrew its
 limits is a question for `calibrate`, comparing reserved and measured
 values from the same context lane.
@@ -333,7 +370,8 @@ values from the same context lane.
 ### 2.8 Report and run log
 
 The run log is the only record a run writes about itself. The manifest
-says what was planned; the log's stage records and `drift` say what ran.
+says the strategy as last settled; the log's `drift` says how it moved
+from what was first written, and its stage records say what ran.
 Nothing restates the manifest.
 
 ```yaml
@@ -587,14 +625,15 @@ gates:
 
 ### 3.8 Limits (optional, advisory)
 
-Ceilings for one run. They act at compose time only: they turn a large
-intent into a plan of parts. Nothing checks them mid-run.
-`calibrate` reports how often runs outgrew them.
+Ceilings for one run. They act whenever work is sized: they turn a large
+intent into a plan of parts at compose time, and a part's work into
+slices when its orchestrator settles the strategy. Nothing checks them
+mid-run. `calibrate` reports how often runs outgrew them.
 
 ```yaml
 limits:
   orchestrator_tokens: 120000   # context the orchestrating session may spend
-  worker_context_tokens: 300000 # each worker context may spend
+  worker_context_tokens: 200000 # ceiling per worker; slices aim at about 170k
   worker_tokens_total: 900000   # optional aggregate ceiling across workers
   cost: 5.00                    # optional, with currency
   currency: USD
@@ -605,7 +644,7 @@ All fields optional. Missing fields are unlimited.
 ### 3.9 Estimate and actual (optional)
 
 `estimate` is a conservative context reservation produced at compose
-time. `actual` is a separate measured record in the run log and plan
+time and redone when the strategy is settled. `actual` is a separate measured record in the run log and plan
 file, not the manifest. Reservation fields are never copied into actual.
 Any actual token field may be absent when the adapter or usage observer
 cannot measure it (2.8).
@@ -837,7 +876,7 @@ startup:
   basis: "claude code /context, empty session, 2026-09-18"
 limits:
   orchestrator_tokens: 120000
-  worker_context_tokens: 300000
+  worker_context_tokens: 200000
 ```
 
 Catalog files may reference these values with `{{ project.<path> }}`
@@ -863,7 +902,8 @@ a session and 25000 for a worker and says so in the estimate basis.
 `limits` is the contract the user cares about most: it is what turns a
 large intent into a plan of parts. When absent,
 the orchestrator uses its own judgement and says so in the estimate basis.
-`worker_context_tokens` is per worker.
+`worker_context_tokens` is per worker: a ceiling, with slices aimed
+lower, at about 170k.
 Only `worker_tokens_total`, when present, caps the aggregate worker volume.
 The shipped 120k orchestrator ceiling leaves enough room after the 40k
 startup default for the documented ordinary two-file inline shape.
@@ -937,7 +977,7 @@ acos: "0.1"
 id: 2026-09-16-auth-hardening
 intent: "Full auth hardening: silent refresh on 401, logout endpoint, session persistence."
 mode: sequential                    # single | sequential | parallel, asked before the cut
-limits: { orchestrator_tokens: 120000, worker_context_tokens: 300000 }
+limits: { orchestrator_tokens: 120000, worker_context_tokens: 200000 }
 parts:
   - index: 1
     dir: 1-refresh-on-401
@@ -963,11 +1003,11 @@ parts:
       files: 5
       calibration: fallback
       confidence: low
-      orchestrator: { startup_tokens: 40000, work_tokens: 0, coordination_tokens: 10000, reserved_tokens: 50000, limit_tokens: 120000 }
-      workers:
-        - { stage: implement, work_class: semantic, startup_included: true, reserved_tokens: 225000, limit_tokens: 300000 }
-        - { stage: evidence, work_class: evidence, startup_included: true, reserved_tokens: 60000, limit_tokens: 300000 }
-      aggregate_reserved_tokens: 335000
+      orchestrator: { startup_tokens: 40000, work_tokens: 15000, coordination_tokens: 10000, reserved_tokens: 65000, limit_tokens: 120000 }
+      workers:                      # a suggestion; settled when the part starts
+        - { stage: implement, work_class: semantic, startup_included: true, reserved_tokens: 105000, limit_tokens: 200000 }
+        - { stage: evidence, work_class: evidence, startup_included: true, reserved_tokens: 60000, limit_tokens: 200000 }
+      aggregate_reserved_tokens: 230000
       observed_tokens: null
       agents: 2
     status: planned
@@ -980,15 +1020,15 @@ parts:
       files: 7
       calibration: fallback
       confidence: low
-      orchestrator: { startup_tokens: 40000, work_tokens: 15000, coordination_tokens: 10000, reserved_tokens: 65000, limit_tokens: 120000 }
+      orchestrator: { startup_tokens: 40000, work_tokens: 21000, coordination_tokens: 10000, reserved_tokens: 71000, limit_tokens: 120000 }
       workers:
-        - { stage: implement-storage, work_class: semantic, startup_included: true, reserved_tokens: 195000, limit_tokens: 300000 }
-        - { stage: implement-client, work_class: semantic, startup_included: true, reserved_tokens: 210000, limit_tokens: 300000 }
-      aggregate_reserved_tokens: 470000
+        - { stage: implement-storage, work_class: semantic, startup_included: true, reserved_tokens: 97000, limit_tokens: 200000 }
+        - { stage: implement-client, work_class: semantic, startup_included: true, reserved_tokens: 89000, limit_tokens: 200000 }
+      aggregate_reserved_tokens: 257000
       observed_tokens: null
       agents: 2
     status: planned
-estimate: { aggregate_reserved_tokens: 921000, agents: 4, sessions: 3 }
+estimate: { aggregate_reserved_tokens: 603000, agents: 4, sessions: 3 }
 discoveries:                        # appended by the part that found each one
   - date: 2026-09-18
     part: 1
@@ -1006,13 +1046,14 @@ orchestrator startup per session. It describes total reserved context
 volume and is never compared with either per-context token ceiling.
 
 Every part's manifest is complete on its own: it can be attached to a
-work item and run months later in a session that knows nothing else. The
+work item and run months later in a session that knows nothing else. Its
+stages and worker estimates are the planner's suggestion, which the
+session that runs it settles at the start (section 2.1). The
 plan file is the index and the running status. `mode` says how the
 parts run (section 2.1): in `single`, `sessions` is 1, the plan's
 `estimate.orchestrator` holds the session's lane and parts after the
 first carry no startup; in `parallel`, a part entry carries `worktree`
-and, when it is `own`, the reason. `double_reads` lists any area that
-had to be read to be cut, with its cause. Parts run in the order
+and, when it is `own`, the reason. Parts run in the order
 `after` allows; a part's manifest may state in `part.assumes` what it
 expects earlier parts to have left in the tree. A part with more than one
 slice is one session with several workers, and `sessions` counts it once.
@@ -1020,9 +1061,10 @@ slice is one session with several workers, and `sessions` counts it once.
 The plan changes as soon as a part learns something that contradicts it:
 a premise or cause the intent relied on, or a later part's scope, order,
 ownership or acceptance target. The part that found it appends an entry
-to `discoveries` and shows the adjusted cut for the later parts. On
-approval, it rewrites their entries and manifests before it closes. Parts
-already `done` are never rewritten. A target a part cannot meet becomes
+to `discoveries` and updates the entries of the later parts it changes
+before it closes, saying so in one line. Their manifests are left to
+their own orchestrators, which re-cut from the discoveries when they
+start. Parts already `done` are never rewritten. A target a part cannot meet becomes
 the acceptance check of a named later part. It is never left as a note
 carried forward.
 
@@ -1034,7 +1076,7 @@ carried forward.
 - Enforcement of limits, hard or soft, during a run.
 - Cross-run scheduling or queues.
 - Defining adapter internals. Runners own that.
-- Mid-run re-approval. The planned manifest is approved once; what
-  actually ran is recorded, not re-negotiated. The exception is a
-  discovery that invalidates the running part's intent, or that changes
-  later parts of a plan. That is asked once, when it is found.
+- Mid-run re-approval. The intent is approved once; the strategy is the
+  orchestrator's to change, stated and recorded, not re-negotiated. The
+  exception is a discovery that invalidates the running part's intent.
+  That is asked once, when it is found.

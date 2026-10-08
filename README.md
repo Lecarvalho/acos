@@ -64,10 +64,21 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
   `disable-model-invocation: true` for Claude Code,
   `agents/openai.yaml` `allow_implicit_invocation: false` for Codex.
 - **The GO gate is mandatory.** Only a project's own `config.yaml` can set
-  it to `auto`. Presets cannot.
+  it to `auto`. Presets cannot. A part already written and started with
+  `/acos run` does not wait again: it prints its strategy and starts,
+  and the user challenges while it works.
+- **The plan suggests; the part settles.** A planner cannot know how
+  many workers each part needs or which modules each takes. It fixes
+  the parts and suggests the workers. The orchestrator that runs a part
+  reads what it needs and what earlier parts found, re-cuts its own
+  work, rewrites its manifest and says so, without asking.
+- **Workers stay short.** A slice aims at about 170k tokens and is
+  never planned past 200k: one agent on thirty files is a long,
+  expensive run, and a precise brief makes each worker's job close to
+  mechanical.
 - **Limits and estimates are advisory.** Per-context token limits (orchestrator
   and worker context) shape the manifest and split big tasks into a
-  plan at compose time. An optional `worker_tokens_total` is the only
+  plan at compose time, and a part into slices when it starts. An optional `worker_tokens_total` is the only
   aggregate worker ceiling. Compose-time reservations are conservative;
   measured actuals stay unknown until an adapter or usage observer reports them.
   Nothing checks them mid-run; `/acos calibrate` does, afterwards.
@@ -76,11 +87,11 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
   fresh session per part in order, or sessions side by side on parts
   that share no file (one worktree unless a part cannot share it). The
   cut follows the answer. Every part is still a complete manifest.
-- **Whoever opens a file edits it.** A file read to plan and read again
-  to implement is paid twice. Plans and briefs come from structure, the
-  implementer is the first to open its files, and when a repo's
-  coupling makes that impossible the orchestrator says so instead of
-  paying it silently.
+- **The orchestrator reads to plan; no two workers read one file.**
+  Planning an execution means opening files, and briefs written from
+  the code carry the decisions. What is worth avoiding is two workers
+  opening the same file: each has one worker, and what another needs
+  from it arrives as a signature in its brief. A habit, not a rule.
 - **A session does not start at zero.** `config.yaml` records the startup
   load — system prompt, tools, MCP servers, memory, skills — measured by
   `/acos init`. Sizing subtracts it before anything else, so the budget
@@ -104,10 +115,10 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
   step 3 at low. A stage that needs different ones is delegated.
 - **Fan-out when slices are disjoint.** Two or more groups of files that
   share nothing become one part: the orchestrator plans once and writes a
-  brief per slice from structure, a balanced-tier implementer per slice
+  brief per slice, a balanced-tier implementer per slice
   runs in parallel owning only its files, verify runs on the merged
-  tree. The files are read once, by their implementer, never in the
-  orchestrator's context. One group stays inline, unless the orchestrator's remaining
+  tree. A group too big for one worker is split at its thinnest seam.
+  One group stays inline, unless the orchestrator's remaining
   budget cannot hold it.
 - **Tier by role.** Plan, brief and handoff on the session model;
   explorers on the fast tier; implementers in a fan-out and the
@@ -125,8 +136,8 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
   is one line. Only the manifest names an id, written
   fresh at compose time; the log records the one that ran. A repo picks
   tier and effort per block in `config.yaml` `stages`.
-- **After GO, no re-approval.** Changes in flight are drift: applied
-  and recorded in the run log. The user
+- **After GO, no re-approval.** Changes in flight are drift: applied,
+  written back into the manifest and recorded in the run log. The user
   is asked again only on `on_fail: ask` or a gate.
 - **Calibration is a separate step.** `/acos calibrate` compares manifests
   with their run logs across runs and writes a short note the next
