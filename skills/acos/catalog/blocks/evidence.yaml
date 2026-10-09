@@ -33,6 +33,16 @@ prompt: |
   match, 7 empty box, 8 no image, 9 browser transport). Report a failing
   exit code with its line; do not debug the page.
 
+  A state the page decides while it first renders (a bridge or flag its
+  host injects, a stored preference) is out of reach of `--eval`, which
+  runs after load: pass it with `--init <js>` or `--init-file <path>`,
+  which run before the page's own scripts. When a claim needs clicks,
+  typing, key presses or a drag, or several crops of one page at several
+  widths, do not write a capture driver: write a spec file under
+  `runs/<id>/artifacts/` and run the sibling script `shots.mjs` on it
+  (same folder as the capture command; `--help` lists the spec shape
+  and the page actions). It writes `<name>-<width>.png` per capture.
+
   Open every PNG and look at it. Then write `runs/<id>/artifacts/try-it.md`:
   what a reader does to see this change, and per claim one crop,
   `![alt](shots/<name>.png)`, with one or two lines saying what the crop

@@ -13,6 +13,7 @@ Copy `skills/acos/` from this repo to:
   agents/openai.yaml       manual only: allow_implicit_invocation: false (Codex)
   references/*.md
   scripts/shot.mjs
+  scripts/shots.mjs
   catalog/providers.yaml
   catalog/blocks/*.yaml
   presets/*.yaml

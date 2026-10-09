@@ -55,7 +55,8 @@ later, own session:   /acos calibrate  ->  calibration.md  ->  next compose
 | `skills/acos/config.example.yaml` | Shape of a project's `config.yaml`, which `/acos init` writes into the installed skill folder. |
 | `calibration.md`, `runs/` | Not shipped. Written per project into the installed skill folder by `/acos calibrate` and by runs. |
 | `.claude/skills/acos/` | This repository's own install: a pointer to `skills/acos/`, plus its `config.yaml` and `runs/`. |
-| `skills/acos/scripts/shot.mjs` | Captures a cropped PNG of a running page with headless Chrome or Edge, so a part can show what it changed instead of describing it. Reuses Codex's bundled Playwright when present and otherwise uses dependency-free CDP. |
+| `skills/acos/scripts/shot.mjs` | Captures a cropped PNG of a running page with headless Chrome or Edge, so a part can show what it changed instead of describing it. Reuses Codex's bundled Playwright when present and otherwise uses dependency-free CDP. `--init` runs a script before the page's first render. |
+| `skills/acos/scripts/shots.mjs` | Scripted captures from a spec file, for what one `shot.mjs` command cannot reach: a script before first render, clicks, typing, key presses and drags, and several crops of one page at several widths from one browser. Dependency-free CDP. |
 | `install.md` | How to drop this into a project. |
 
 ## Design choices
