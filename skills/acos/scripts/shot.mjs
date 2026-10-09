@@ -27,11 +27,15 @@ const USAGE = `shot - capture a cropped PNG of a running page
   --pad <px>          pixels around the clip (default 0)
   --wait-for <css>    wait until this element exists before --eval runs
   --eval <js>         run after load, for a state no URL reaches
+  --init <js>         run in the page before any of its own scripts, on every
+                      navigation, for a state decided at first render
+  --init-file <path>  the same, read from a file
   --settle <ms>       wait after load and again after --eval (default 1500)
   --timeout <ms>      give up after this (default 30000)
 
-Order of operations: navigate, load, --wait-for, --settle, --eval, --settle,
-capture.
+Order of operations: register --init, navigate, load, --wait-for, --settle,
+--eval, --settle, capture.
+For clicks, typing, drags or several captures of one page, use shots.mjs.
 The --selector target is polled until --timeout, so it may be an element that
 only --eval brings into existence.
 Set ACOS_CHROME or CHROME_PATH to choose the browser binary. Set
@@ -69,6 +73,11 @@ function parseArgs(argv) {
     } else {
       flags[key] = value;
     }
+  }
+  if (flags.init !== undefined && flags.initFile !== undefined) die(E_USAGE, 'pass at most one of --init and --init-file');
+  if (flags.initFile !== undefined) {
+    try { flags.init = readFileSync(flags.initFile, 'utf8'); }
+    catch { die(E_USAGE, `cannot read --init-file ${flags.initFile}`); }
   }
   if (!flags.url) die(E_USAGE, 'missing --url');
   if (!flags.out) die(E_USAGE, 'missing --out');
@@ -217,6 +226,7 @@ async function captureWithPlaywright(playwright, binary, flags) {
       viewport: { width: flags.width, height: flags.height },
       deviceScaleFactor: flags.dpr,
     });
+    if (flags.init) await context.addInitScript({ content: flags.init });
     const page = await context.newPage();
     page.setDefaultTimeout(flags.timeout);
     try { await page.goto(flags.url, { waitUntil: 'load', timeout: flags.timeout }); }
@@ -376,6 +386,10 @@ try {
     if (exceptionDetails) throw new Error(exceptionDetails.text ?? 'evaluation failed');
     return result?.value;
   };
+
+  // Registered before the navigation, so it runs ahead of the page's own scripts:
+  // --eval is too late for anything the page decides while it first renders.
+  if (flags.init) await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: flags.init }, sessionId);
 
   await cdp.send('Page.navigate', { url: flags.url }, sessionId);
   if (!await waitFor(() => cdp.events.includes('Page.loadEventFired'), deadline)) {
